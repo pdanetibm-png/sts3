@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.DS_Store
+*.local
+*.tsbuildinfo
+
+# Réglages locaux de Claude Code (permissions propres à cette machine)
+.claude/settings.local.json

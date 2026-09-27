@@ -1,0 +1,38 @@
+{
+  "version": "0.6.0",
+  "seed": 20260923,
+  "objective": "Patrouiller la zone assignée et localiser le contact signalé.",
+  "catalog": "/catalog/catalogue.json",
+  "deadlineSeconds": 7200,
+  "assumptions": {
+    "trackRecentSeconds": 30,
+    "trackLostSeconds": 600,
+    "targetManeuverG": 1,
+    "missileManeuverG": 60,
+    "velocityWindowSeconds": 60,
+    "bearingDriftRadPerSecond": 0.0005,
+    "unknownSpeedMps": 10000
+  },
+  "ships": [
+    {
+      "id": "joueur-1",
+      "name": "SCS Kestrel",
+      "affiliation": "joueur",
+      "assembly": "corvette-classique",
+      "position": [0, 0, 0],
+      "velocity": [0, 0, 0],
+      "attitude": [0, 0, 0, 1],
+      "angularVelocity": [0, 0, 0]
+    },
+    {
+      "id": "adversaire-1",
+      "name": "Contact non identifié",
+      "affiliation": "adversaire",
+      "assembly": "corvette-classique",
+      "position": [3000000, 400000, -200000],
+      "velocity": [-150, 20, 0],
+      "attitude": [0, 0, 0, 1],
+      "angularVelocity": [0, 0, 0]
+    }
+  ]
+}

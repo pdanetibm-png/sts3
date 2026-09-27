@@ -1,0 +1,564 @@
+{
+  "catalogVersion": "5",
+  "description": "Catalogue de matériel de base. Unités SI (m, s, kg, N, W, K). « Classique × 2 » : technologies actuelles doublées (propulsion nucléaire thermique, missiles chimiques avancés). « Epstein » : fiction assumée, type The Expanse. Chaque vaisseau est un assemblage de composants ; les scénarios y font référence par identifiant.",
+  "components": {
+    "hulls": [
+      {
+        "id": "coque-corvette-150t",
+        "name": "Coque de corvette 150 t (40 m × 10 m)",
+        "dryMassKg": 150000,
+        "momentOfInertiaKgM2": [4000000, 5000000, 4500000],
+        "collisionRadiusMeters": 25,
+        "signature": {
+          "thermal": {
+            "surfaceAreaM2": 1400,
+            "emissivity": 0.85,
+            "heatCapacityJoulesPerKelvin": 75000000,
+            "baselineHeatWatts": 50000
+          },
+          "radar": {
+            "crossSectionFrontM2": 60,
+            "crossSectionSideM2": 400
+          }
+        }
+      }
+    ],
+    "engines": [
+      {
+        "id": "moteur-ntr-3mn",
+        "name": "Moteur nucléaire thermique 3 MN (Isp 900 s)",
+        "kind": "principal",
+        "maxThrustNewtons": 3000000,
+        "specificImpulseSeconds": 900,
+        "plumeRadiantFraction": 0.0001,
+        "wasteHeatFraction": 0.0001
+      },
+      {
+        "id": "moteur-epstein-9mn",
+        "name": "Moteur Epstein 9 MN (fiction)",
+        "kind": "principal",
+        "maxThrustNewtons": 9000000,
+        "specificImpulseSeconds": 1000000,
+        "plumeRadiantFraction": 1e-06,
+        "wasteHeatFraction": 1e-07
+      },
+      {
+        "id": "propulseur-rcs-60kn",
+        "name": "Propulseur d'attitude 60 kN",
+        "kind": "rcs",
+        "maxThrustNewtons": 60000,
+        "specificImpulseSeconds": 300
+      }
+    ],
+    "tanks": [
+      {
+        "id": "reservoir-150t",
+        "name": "Réservoir de propergol 150 t",
+        "capacityKg": 150000
+      }
+    ],
+    "reactors": [
+      {
+        "id": "reacteur-500kw",
+        "name": "Réacteur 500 kWe (rendement 30 %)",
+        "maxPowerWatts": 500000,
+        "fuelConsumptionKgPerSecondAtMaxPower": 0.05,
+        "efficiency": 0.3
+      }
+    ],
+    "batteries": [
+      {
+        "id": "batterie-1mwh",
+        "name": "Batterie 1 MWh",
+        "capacityWattSeconds": 3600000,
+        "maxChargeRateWatts": 100000,
+        "maxDischargeRateWatts": 200000
+      }
+    ],
+    "sensors": [
+      {
+        "id": "telescope-ir-30cm",
+        "name": "Télescope IR 30 cm",
+        "mode": "ir_passive",
+        "powerWatts": 500,
+        "cycleSeconds": 10,
+        "minFrameSeconds": 1,
+        "noiseEquivalentIrradianceWm2": 1e-12,
+        "fieldOfViewSr": 0.0003,
+        "pixelAngleRad": 2e-05,
+        "bandFraction": 0.3
+      },
+      {
+        "id": "ecoute-esm",
+        "name": "Écoute radar (ESM)",
+        "mode": "radar_passive",
+        "powerWatts": 150,
+        "cycleSeconds": 1.5,
+        "minFrameSeconds": 1.5,
+        "sensitivityWm2": 1e-09,
+        "bearingAccuracyRad": 0.005
+      },
+      {
+        "id": "radar-x-20kw",
+        "name": "Radar bande X 20 kW, antenne 3 m²",
+        "mode": "radar_active",
+        "powerWatts": 20000,
+        "electricalPowerWatts": 50000,
+        "cycleSeconds": 10,
+        "minFrameSeconds": 1,
+        "antennaAreaM2": 3,
+        "wavelengthMeters": 0.03,
+        "noiseTemperatureKelvin": 500,
+        "lossFactor": 10,
+        "requiredSnr": 20,
+        "rangeResolutionMeters": 15,
+        "sideLobeLevel": 0.001
+      }
+    ],
+    "crews": [
+      {
+        "id": "equipage-standard",
+        "name": "Équipage standard, sièges anti-G",
+        "gThreshold": 5,
+        "exposureAccumulationPerSecond": 0.1,
+        "exposureRecoveryPerSecond": 0.05
+      }
+    ],
+    "missiles": [
+      {
+        "id": "missile-chimique-avance",
+        "name": "Missile chimique avancé (6 km/s)",
+        "structureMassKg": 200,
+        "reservoir": {
+          "capacityKg": 400,
+          "quantityKg": 400
+        },
+        "maxThrustNewtons": 147000,
+        "specificImpulseSeconds": 560,
+        "plumeRadiantFraction": 0.02,
+        "wasteHeatFraction": 0.001,
+        "signature": {
+          "thermal": {
+            "surfaceAreaM2": 4,
+            "emissivity": 0.8,
+            "heatCapacityJoulesPerKelvin": 180000,
+            "baselineHeatWatts": 200
+          },
+          "radar": {
+            "crossSectionFrontM2": 0.05,
+            "crossSectionSideM2": 0.4
+          }
+        },
+        "presentedAreaFrontM2": 0.13,
+        "presentedAreaSideM2": 1.6
+      },
+      {
+        "id": "torpille-epstein",
+        "name": "Torpille Epstein 40 G (fiction)",
+        "structureMassKg": 300,
+        "reservoir": {
+          "capacityKg": 30,
+          "quantityKg": 30
+        },
+        "maxThrustNewtons": 129000,
+        "specificImpulseSeconds": 50000,
+        "plumeRadiantFraction": 1e-05,
+        "wasteHeatFraction": 1e-06,
+        "signature": {
+          "thermal": {
+            "surfaceAreaM2": 6,
+            "emissivity": 0.8,
+            "heatCapacityJoulesPerKelvin": 270000,
+            "baselineHeatWatts": 300
+          },
+          "radar": {
+            "crossSectionFrontM2": 0.1,
+            "crossSectionSideM2": 0.8
+          }
+        },
+        "presentedAreaFrontM2": 0.12,
+        "presentedAreaSideM2": 1.2
+      }
+    ],
+    "doctrines": [
+      {
+        "id": "doctrine-standard",
+        "name": "Doctrine standard",
+        "searchDelaySeconds": 120,
+        "fireCooldownSeconds": 60,
+        "sectorHalfAngleRad": 0.05,
+        "approachThrottle": 0.5,
+        "maxMissileFlightSeconds": 60,
+        "brakeClosingSpeedMps": 20,
+        "cruiseSpeedMps": 1500,
+        "propellantReserveFraction": 0.3,
+        "wingmanMaxLeadMeters": 20000,
+        "decoyThreatSeconds": 60,
+        "decoyVectorSeconds": 20,
+        "decoyDriftSeconds": 180,
+        "decoyCooldownSeconds": 120
+      }
+    ],
+    "decoys": [
+      {
+        "id": "leurre-reflecteurs",
+        "name": "Leurre à réflecteurs (grappe de trièdres, générateur IR)",
+        "structureMassKg": 150,
+        "reservoir": {
+          "capacityKg": 200,
+          "quantityKg": 200
+        },
+        "maxThrustNewtons": 6000,
+        "specificImpulseSeconds": 300,
+        "plumeRadiantFraction": 0.02,
+        "wasteHeatFraction": 0.001,
+        "collisionRadiusMeters": 2,
+        "signature": {
+          "thermal": {
+            "surfaceAreaM2": 3,
+            "emissivity": 0.8,
+            "heatCapacityJoulesPerKelvin": 150000,
+            "baselineHeatWatts": 100
+          },
+          "radar": {
+            "crossSectionFrontM2": 150,
+            "crossSectionSideM2": 250
+          }
+        },
+        "irEmitter": {
+          "maxRadiantPowerWatts": 1500000,
+          "chargeKg": 100,
+          "radiantEnergyJoulesPerKg": 2000000
+        },
+        "presentedAreaFrontM2": 0.8,
+        "presentedAreaSideM2": 1.0
+      },
+      {
+        "id": "leurre-leger",
+        "name": "Leurre léger (petit réflecteur, sans générateur)",
+        "structureMassKg": 40,
+        "reservoir": {
+          "capacityKg": 80,
+          "quantityKg": 80
+        },
+        "maxThrustNewtons": 1500,
+        "specificImpulseSeconds": 280,
+        "plumeRadiantFraction": 0.02,
+        "wasteHeatFraction": 0.001,
+        "collisionRadiusMeters": 1,
+        "signature": {
+          "thermal": {
+            "surfaceAreaM2": 1,
+            "emissivity": 0.8,
+            "heatCapacityJoulesPerKelvin": 40000,
+            "baselineHeatWatts": 30
+          },
+          "radar": {
+            "crossSectionFrontM2": 0.5,
+            "crossSectionSideM2": 1.5
+          }
+        },
+        "presentedAreaFrontM2": 0.1,
+        "presentedAreaSideM2": 0.3
+      }
+    ],
+    "pdcs": [
+      {
+        "id": "pdc-25mm",
+        "name": "PDC 25 mm (1 500 m/s, 60 coups/s)",
+        "muzzleVelocityMps": 1500,
+        "rateOfFireRoundsPerSecond": 60,
+        "dispersionRad": 0.001,
+        "maxRangeMeters": 5000,
+        "magazineRounds": 3000,
+        "retargetSeconds": 1
+      }
+    ]
+  },
+  "assemblies": [
+    {
+      "id": "corvette-classique",
+      "name": "Corvette « classique × 2 » (nucléaire thermique)",
+      "hull": "coque-corvette-150t",
+      "thrusters": [
+        {
+          "id": "principal",
+          "component": "moteur-ntr-3mn",
+          "localPosition": [0, 0, 0],
+          "localAxis": [1, 0, 0]
+        },
+        {
+          "id": "rcs-roll-pos-a",
+          "component": "propulseur-rcs-60kn",
+          "localPosition": [0, 8, 0],
+          "localAxis": [0, 0, 1]
+        },
+        {
+          "id": "rcs-roll-pos-b",
+          "component": "propulseur-rcs-60kn",
+          "localPosition": [0, -8, 0],
+          "localAxis": [0, 0, -1]
+        },
+        {
+          "id": "rcs-roll-neg-a",
+          "component": "propulseur-rcs-60kn",
+          "localPosition": [0, 8, 0],
+          "localAxis": [0, 0, -1]
+        },
+        {
+          "id": "rcs-roll-neg-b",
+          "component": "propulseur-rcs-60kn",
+          "localPosition": [0, -8, 0],
+          "localAxis": [0, 0, 1]
+        },
+        {
+          "id": "rcs-pitch-pos-a",
+          "component": "propulseur-rcs-60kn",
+          "localPosition": [0, 0, 8],
+          "localAxis": [1, 0, 0]
+        },
+        {
+          "id": "rcs-pitch-pos-b",
+          "component": "propulseur-rcs-60kn",
+          "localPosition": [0, 0, -8],
+          "localAxis": [-1, 0, 0]
+        },
+        {
+          "id": "rcs-pitch-neg-a",
+          "component": "propulseur-rcs-60kn",
+          "localPosition": [0, 0, 8],
+          "localAxis": [-1, 0, 0]
+        },
+        {
+          "id": "rcs-pitch-neg-b",
+          "component": "propulseur-rcs-60kn",
+          "localPosition": [0, 0, -8],
+          "localAxis": [1, 0, 0]
+        },
+        {
+          "id": "rcs-yaw-pos-a",
+          "component": "propulseur-rcs-60kn",
+          "localPosition": [8, 0, 0],
+          "localAxis": [0, 1, 0]
+        },
+        {
+          "id": "rcs-yaw-pos-b",
+          "component": "propulseur-rcs-60kn",
+          "localPosition": [-8, 0, 0],
+          "localAxis": [0, -1, 0]
+        },
+        {
+          "id": "rcs-yaw-neg-a",
+          "component": "propulseur-rcs-60kn",
+          "localPosition": [8, 0, 0],
+          "localAxis": [0, -1, 0]
+        },
+        {
+          "id": "rcs-yaw-neg-b",
+          "component": "propulseur-rcs-60kn",
+          "localPosition": [-8, 0, 0],
+          "localAxis": [0, 1, 0]
+        }
+      ],
+      "tank": {
+        "component": "reservoir-150t",
+        "quantityKg": 150000
+      },
+      "reactor": "reacteur-500kw",
+      "battery": {
+        "component": "batterie-1mwh",
+        "chargeWattSeconds": 3600000
+      },
+      "sensors": [
+        {
+          "id": "ir-1",
+          "component": "telescope-ir-30cm"
+        },
+        {
+          "id": "listen-1",
+          "component": "ecoute-esm"
+        },
+        {
+          "id": "radar-1",
+          "component": "radar-x-20kw"
+        }
+      ],
+      "electricalLoads": [
+        {
+          "id": "vie",
+          "label": "Support vie et commandes",
+          "nominalPowerWatts": 15000,
+          "priorityGroup": "vie"
+        },
+        {
+          "id": "rcs-aux",
+          "label": "Propulsion auxiliaire / RCS",
+          "nominalPowerWatts": 20000,
+          "priorityGroup": "propulsion_auxiliaire"
+        },
+        {
+          "id": "services",
+          "label": "Services secondaires",
+          "nominalPowerWatts": 10000,
+          "priorityGroup": "services"
+        }
+      ],
+      "crew": "equipage-standard",
+      "doctrine": "doctrine-standard",
+      "missiles": {
+        "missile": "missile-chimique-avance",
+        "count": 4
+      },
+      "decoys": {
+        "decoy": "leurre-reflecteurs",
+        "count": 3
+      },
+      "pdcs": [
+        { "id": "pdc-dorsale", "component": "pdc-25mm" },
+        { "id": "pdc-ventrale", "component": "pdc-25mm" }
+      ]
+    },
+    {
+      "id": "corvette-epstein",
+      "name": "Corvette Epstein (fiction)",
+      "hull": "coque-corvette-150t",
+      "thrusters": [
+        {
+          "id": "principal",
+          "component": "moteur-epstein-9mn",
+          "localPosition": [0, 0, 0],
+          "localAxis": [1, 0, 0]
+        },
+        {
+          "id": "rcs-roll-pos-a",
+          "component": "propulseur-rcs-60kn",
+          "localPosition": [0, 8, 0],
+          "localAxis": [0, 0, 1]
+        },
+        {
+          "id": "rcs-roll-pos-b",
+          "component": "propulseur-rcs-60kn",
+          "localPosition": [0, -8, 0],
+          "localAxis": [0, 0, -1]
+        },
+        {
+          "id": "rcs-roll-neg-a",
+          "component": "propulseur-rcs-60kn",
+          "localPosition": [0, 8, 0],
+          "localAxis": [0, 0, -1]
+        },
+        {
+          "id": "rcs-roll-neg-b",
+          "component": "propulseur-rcs-60kn",
+          "localPosition": [0, -8, 0],
+          "localAxis": [0, 0, 1]
+        },
+        {
+          "id": "rcs-pitch-pos-a",
+          "component": "propulseur-rcs-60kn",
+          "localPosition": [0, 0, 8],
+          "localAxis": [1, 0, 0]
+        },
+        {
+          "id": "rcs-pitch-pos-b",
+          "component": "propulseur-rcs-60kn",
+          "localPosition": [0, 0, -8],
+          "localAxis": [-1, 0, 0]
+        },
+        {
+          "id": "rcs-pitch-neg-a",
+          "component": "propulseur-rcs-60kn",
+          "localPosition": [0, 0, 8],
+          "localAxis": [-1, 0, 0]
+        },
+        {
+          "id": "rcs-pitch-neg-b",
+          "component": "propulseur-rcs-60kn",
+          "localPosition": [0, 0, -8],
+          "localAxis": [1, 0, 0]
+        },
+        {
+          "id": "rcs-yaw-pos-a",
+          "component": "propulseur-rcs-60kn",
+          "localPosition": [8, 0, 0],
+          "localAxis": [0, 1, 0]
+        },
+        {
+          "id": "rcs-yaw-pos-b",
+          "component": "propulseur-rcs-60kn",
+          "localPosition": [-8, 0, 0],
+          "localAxis": [0, -1, 0]
+        },
+        {
+          "id": "rcs-yaw-neg-a",
+          "component": "propulseur-rcs-60kn",
+          "localPosition": [8, 0, 0],
+          "localAxis": [0, -1, 0]
+        },
+        {
+          "id": "rcs-yaw-neg-b",
+          "component": "propulseur-rcs-60kn",
+          "localPosition": [-8, 0, 0],
+          "localAxis": [0, 1, 0]
+        }
+      ],
+      "tank": {
+        "component": "reservoir-150t",
+        "quantityKg": 150000
+      },
+      "reactor": "reacteur-500kw",
+      "battery": {
+        "component": "batterie-1mwh",
+        "chargeWattSeconds": 3600000
+      },
+      "sensors": [
+        {
+          "id": "ir-1",
+          "component": "telescope-ir-30cm"
+        },
+        {
+          "id": "listen-1",
+          "component": "ecoute-esm"
+        },
+        {
+          "id": "radar-1",
+          "component": "radar-x-20kw"
+        }
+      ],
+      "electricalLoads": [
+        {
+          "id": "vie",
+          "label": "Support vie et commandes",
+          "nominalPowerWatts": 15000,
+          "priorityGroup": "vie"
+        },
+        {
+          "id": "rcs-aux",
+          "label": "Propulsion auxiliaire / RCS",
+          "nominalPowerWatts": 20000,
+          "priorityGroup": "propulsion_auxiliaire"
+        },
+        {
+          "id": "services",
+          "label": "Services secondaires",
+          "nominalPowerWatts": 10000,
+          "priorityGroup": "services"
+        }
+      ],
+      "crew": "equipage-standard",
+      "doctrine": "doctrine-standard",
+      "missiles": {
+        "missile": "torpille-epstein",
+        "count": 4
+      },
+      "decoys": {
+        "decoy": "leurre-reflecteurs",
+        "count": 3
+      },
+      "pdcs": [
+        { "id": "pdc-dorsale", "component": "pdc-25mm" },
+        { "id": "pdc-ventrale", "component": "pdc-25mm" }
+      ]
+    }
+  ]
+}
