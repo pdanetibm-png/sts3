@@ -8,13 +8,14 @@ const STATE_COLOR: Record<TrackState, number> = {
   lost: 0x666a75,
 };
 
-const BEARING_LINE_DISTANCE_METERS = 6000;
+const DEFAULT_BEARING_LINE_DISTANCE_METERS = 6000;
+const X_AXIS = new THREE.Vector3(1, 0, 0);
 
 /**
- * Représentation visuelle d'une piste (section 5.3/5.4) : si la position est connue
- * (radar actif), un marqueur + une sphère d'incertitude + une flèche vitesse en pointillés
- * conceptuels ; sinon un rayon en pointillés le long du seul gisement connu — jamais un
- * point 3D arbitraire. Réutilisable (Tactique, étape 4).
+ * Représentation visuelle d'une piste (section 5.3/5.4) : si la position est connue (radar, ou
+ * distance passive), un marqueur + un ellipsoïde d'incertitude allongé dans l'axe de visée (la
+ * distance est souvent bien moins sûre que la direction) + une flèche vitesse ; sinon un rayon en
+ * pointillés le long du seul gisement connu — jamais un point 3D arbitraire.
  */
 export class TrackVisual {
   readonly group = new THREE.Group();
@@ -47,7 +48,8 @@ export class TrackVisual {
     scene.add(this.group);
   }
 
-  update(track: Track, ownPositionWorld: THREE.Vector3): void {
+  /** `bearingLineMeters` : longueur du rayon d'une piste au gisement seul (le rayon de la vue). */
+  update(track: Track, ownPositionWorld: THREE.Vector3, bearingLineMeters = DEFAULT_BEARING_LINE_DISTANCE_METERS): void {
     const color = STATE_COLOR[track.state];
     (this.positionMarker.material as THREE.MeshBasicMaterial).color.setHex(color);
     (this.uncertaintySphere.material as THREE.MeshBasicMaterial).color.setHex(color);
@@ -61,8 +63,11 @@ export class TrackVisual {
       this.positionMarker.position.copy(track.positionEstimateWorld);
       this.uncertaintySphere.position.copy(track.positionEstimateWorld);
       const radius = Math.max(20, track.positionUncertaintyMeters ?? 20);
-      this.uncertaintySphere.scale.setScalar(radius);
-      this.positionMarker.scale.setScalar(Math.max(5, radius * 0.05));
+      const lateral = Math.max(20, Math.min(radius, track.crossRangeUncertaintyMeters ?? radius));
+      const lineOfSight = track.positionEstimateWorld.clone().sub(ownPositionWorld);
+      if (lineOfSight.lengthSq() > 1) this.uncertaintySphere.quaternion.setFromUnitVectors(X_AXIS, lineOfSight.normalize());
+      this.uncertaintySphere.scale.set(radius, lateral, lateral);
+      this.positionMarker.scale.setScalar(Math.max(5, lateral * 0.2, radius * 0.02));
 
       if (track.velocityEstimateWorld && track.velocityEstimateWorld.length() > 0.5) {
         this.velocityArrow.visible = true;
@@ -80,7 +85,7 @@ export class TrackVisual {
 
       const attribute = this.bearingGeometry.getAttribute("position") as THREE.BufferAttribute;
       attribute.setXYZ(0, ownPositionWorld.x, ownPositionWorld.y, ownPositionWorld.z);
-      const end = ownPositionWorld.clone().addScaledVector(track.bearingEstimateWorld, BEARING_LINE_DISTANCE_METERS);
+      const end = ownPositionWorld.clone().addScaledVector(track.bearingEstimateWorld, bearingLineMeters);
       attribute.setXYZ(1, end.x, end.y, end.z);
       attribute.needsUpdate = true;
       this.bearingLine.computeLineDistances();

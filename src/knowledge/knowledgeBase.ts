@@ -1,7 +1,15 @@
 import type { Vector3 } from "three";
 import type { EstimationAssumptions } from "../sim/types";
-import { associationCandidates, createTrackFromObservation, DEFAULT_ESTIMATION_ASSUMPTIONS, extrapolateTrack, fuseObservationIntoTrack } from "./fusion";
-import type { FriendlyContact, Observation, Track } from "./types";
+import {
+  associationCandidates,
+  createTrackFromObservation,
+  DEFAULT_ESTIMATION_ASSUMPTIONS,
+  extrapolateTrack,
+  fuseObservationIntoTrack,
+  fuseRemoteBearing,
+  remoteBearingScore,
+} from "./fusion";
+import type { FriendlyContact, Observation, SharedBearing, Track } from "./types";
 
 /**
  * Connaissance à bord d'un observateur (section 3.1) — une instance par vaisseau, jamais
@@ -80,6 +88,25 @@ export class KnowledgeBase {
       this.tracksById.set(newTrack.localId, newTrack);
       return newTrack;
     });
+  }
+
+  /**
+   * Gisement reçu d'un allié par la liaison de données (triangulation, CONCEPTION_DETECTION.md §13).
+   * Il ne crée jamais de piste : il enrichit seulement celle qui lui correspond le mieux, si une
+   * piste est compatible. Renvoie la piste enrichie, ou `null`.
+   */
+  ingestRemoteBearing(shared: SharedBearing, ownPositionWorld: Vector3): Track | null {
+    let best: Track | null = null;
+    let bestScore = 1;
+    for (const track of this.tracksById.values()) {
+      const score = remoteBearingScore(track, shared, ownPositionWorld);
+      if (score <= bestScore) {
+        best = track;
+        bestScore = score;
+      }
+    }
+    if (best) fuseRemoteBearing(best, shared, ownPositionWorld, this.assumptions);
+    return best;
   }
 
   /** Restaure les pistes depuis une sauvegarde (section 10) — remplace tout contenu existant.

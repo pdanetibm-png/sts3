@@ -1,5 +1,5 @@
 import type { Vector3 } from "three";
-import type { Observation, Track } from "../../knowledge/types";
+import type { Observation, PositionSource, Track } from "../../knowledge/types";
 import type { RigidBody } from "../../sim/rigidBody";
 import { SENSOR_MODE_LABELS } from "../../sim/sensors";
 import { el, formatDistance, formatSpeed } from "../dom";
@@ -56,10 +56,21 @@ export function renderContactSheet(track: Track, simTime: number, observer: Rigi
   return root;
 }
 
+const POSITION_SOURCE_LABELS: Record<PositionSource, string> = {
+  radar: "radar",
+  triangulation: "triangulation avec un allié",
+  manoeuvre: "par manœuvre",
+};
+
+/** Distance et son incertitude ; l'incertitude latérale est donnée à part quand elle est bien plus petite. */
 function describeDistance(track: Track, observer: RigidBody): string {
   if (!track.positionEstimateWorld) return "inconnue — gisement seul";
   const distance = track.positionEstimateWorld.distanceTo(observer.position);
-  return `${formatDistance(distance)} · ±${formatDistance(track.positionUncertaintyMeters ?? 0)}`;
+  const along = track.positionUncertaintyMeters ?? 0;
+  const lateral = track.crossRangeUncertaintyMeters ?? along;
+  const lateralNote = lateral < 0.5 * along ? ` (latéral ±${formatDistance(lateral)})` : "";
+  const source = track.positionSource ? ` · ${POSITION_SOURCE_LABELS[track.positionSource]}` : "";
+  return `${formatDistance(distance)} · ±${formatDistance(along)}${lateralNote}${source}`;
 }
 
 /** Vitesse relative à notre vaisseau, et sa part le long de la ligne de visée (rapprochement ou éloignement). */

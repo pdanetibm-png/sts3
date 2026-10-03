@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import type { Track } from "../knowledge/types";
 import type { Decoy } from "./decoy";
+import { sectorHalfAngleFor } from "./detection";
 import { estimateEngagementQuality, missileReachMeters } from "./missile";
 import type { Missile } from "./missile";
 import type { RigidBody } from "./rigidBody";
@@ -90,7 +91,9 @@ export function stepCombatAI(body: RigidBody, dt: number, context: CombatAIConte
         radarState.scanDirectionWorld = hasKnownPosition
           ? bestTrack!.positionEstimateWorld!.clone().sub(body.position).normalize()
           : bestTrack!.bearingEstimateWorld.clone();
-        radarState.scanHalfAngleRad = doctrine.sectorHalfAngleRad;
+        // Secteur de doctrine au minimum, élargi à l'incertitude latérale de la piste (A2) : sinon
+        // un radar pointé sur une estimation dérivée balaie à côté de la cible sans jamais la revoir.
+        radarState.scanHalfAngleRad = sectorHalfAngleFor(bestTrack!, body.position, doctrine.sectorHalfAngleRad);
       } else if (state.timeWithoutUsableTrackSeconds >= doctrine.searchDelaySeconds) {
         radarState.enabled = true;
         radarState.scanHalfAngleRad = Math.PI;

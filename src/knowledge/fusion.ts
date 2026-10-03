@@ -1,6 +1,7 @@
 import { Vector3 } from "three";
 import type { EstimationAssumptions } from "../sim/types";
-import type { BearingFix, Observation, RangeFix, Track } from "./types";
+import { solvePassiveRange } from "./passiveRanging";
+import type { BearingFix, Observation, RangeFix, SharedBearing, Track } from "./types";
 
 const STANDARD_GRAVITY_MPS2 = 9.80665;
 
@@ -39,6 +40,7 @@ const BEARING_COMPATIBILITY_FACTOR = 3;
 const BEARING_COMPATIBILITY_MARGIN_RAD = 0.002;
 const MAX_HISTORY_LENGTH = 20;
 const MAX_BEARING_FIXES = 40;
+const MAX_PASSIVE_FIXES = 60;
 // Vitesse estimée par régression linéaire sur les mesures de distance de cette fenêtre : à
 // 20 km, le bruit de gisement donne ~400 m d'erreur latérale par mesure, et une différence
 // entre deux mesures rapprochées produisait des vitesses de l'ordre du km/s pour une cible
@@ -158,8 +160,13 @@ function associationGate(
     const toTrack = track.positionEstimateWorld.clone().sub(observerPositionWorld);
     const trackRange = toTrack.length();
     if (trackRange > 1) {
+      // Un gisement ne se compare qu'à l'incertitude LATÉRALE : celle sur la distance ne change pas
+      // la direction. Sinon une piste à la distance mal connue avale toutes les mesures de son côté
+      // du ciel (un missile qui part du vaisseau suivi, par exemple).
       const margin =
-        GATE_SIGMA * observation.bearingUncertaintyRad + Math.atan2(GATE_SIGMA * positionUncertainty, trackRange) + BEARING_COMPATIBILITY_MARGIN_RAD;
+        GATE_SIGMA * observation.bearingUncertaintyRad +
+        Math.atan2(GATE_SIGMA * trackLateralUncertaintyMeters(track), trackRange) +
+        BEARING_COMPATIBILITY_MARGIN_RAD;
       return { distance: angularDistance(toTrack.divideScalar(trackRange), observation.bearingWorld) * scale, width: margin * scale, dimensions };
     }
   }
@@ -190,10 +197,67 @@ export function createTrackFromObservation(
     ambiguous: false,
     history: [observation],
     rangeFixes: [],
-    bearingFixes: [{ simTime: observation.simTime, bearingWorld: observation.bearingWorld.clone(), uncertaintyRad: observation.bearingUncertaintyRad }],
+    bearingFixes: [
+      {
+        simTime: observation.simTime,
+        bearingWorld: observation.bearingWorld.clone(),
+        uncertaintyRad: observation.bearingUncertaintyRad,
+        observerPositionWorld: observerPositionWorld.clone(),
+      },
+    ],
   };
+  track.passiveFixes = [track.bearingFixes[0]];
   applyRangeMeasurement(track, observation, observerPositionWorld, assumptions);
   return track;
+}
+
+/** Incertitude latérale de la position estimée (perpendiculaire à la ligne de visée). */
+export function trackLateralUncertaintyMeters(track: Track): number {
+  return Math.min(track.crossRangeUncertaintyMeters ?? Number.POSITIVE_INFINITY, track.positionUncertaintyMeters ?? 0);
+}
+
+/**
+ * Incertitude angulaire d'une piste vue de l'observateur : celle du gisement, ou celle de la
+ * position latérale rapportée à la distance. Sert à dimensionner un secteur radar qui la couvre.
+ */
+export function trackAngularUncertaintyRad(track: Track, observerPositionWorld: Vector3): number {
+  let angular = track.bearingUncertaintyRad;
+  if (track.positionEstimateWorld) {
+    const range = track.positionEstimateWorld.distanceTo(observerPositionWorld);
+    if (range > 1) angular = Math.max(angular, Math.atan2(trackLateralUncertaintyMeters(track), range));
+  }
+  return angular;
+}
+
+/** Position estimée sans valeur (incertitude au-delà d'une fraction de la distance). */
+function positionIsMeaningless(track: Track, observerPositionWorld: Vector3): boolean {
+  if (!track.positionEstimateWorld || track.positionUncertaintyMeters === undefined) return false;
+  const range = track.positionEstimateWorld.distanceTo(observerPositionWorld);
+  return range > 1 && track.positionUncertaintyMeters > LOST_RELATIVE_POSITION_UNCERTAINTY * range;
+}
+
+/**
+ * Une position qui ne veut plus rien dire est abandonnée : la piste repasse au gisement seul
+ * (direction vers l'ancienne estimation, vitesse angulaire conservée). Garder une telle position
+ * élargirait sans fin la fenêtre d'association et pointerait le radar au mauvais endroit.
+ */
+function dropPositionEstimate(track: Track, observerPositionWorld: Vector3): void {
+  if (track.positionEstimateWorld) {
+    const toEstimate = track.positionEstimateWorld.clone().sub(observerPositionWorld);
+    const range = toEstimate.length();
+    if (range > 1) {
+      track.bearingEstimateWorld = toEstimate.divideScalar(range);
+      track.bearingUncertaintyRad = Math.max(track.bearingUncertaintyRad, Math.atan2(trackLateralUncertaintyMeters(track), range));
+    }
+  }
+  track.positionEstimateWorld = undefined;
+  track.positionUncertaintyMeters = undefined;
+  track.crossRangeUncertaintyMeters = undefined;
+  track.velocityEstimateWorld = undefined;
+  track.velocityUncertaintyMps = undefined;
+  track.positionSource = undefined;
+  track.maneuvering = false;
+  track.rangeFixes = [];
 }
 
 /** Fusionne une nouvelle mesure compatible : réduit l'incertitude au niveau du capteur (DET-03). */
@@ -211,10 +275,105 @@ export function fuseObservationIntoTrack(
   track.bearingEstimateWorld = observation.bearingWorld.clone();
   track.bearingUncertaintyRad = observation.bearingUncertaintyRad;
   track.state = "recent";
-  applyBearingMeasurement(track, observation, assumptions);
+  applyBearingMeasurement(track, observation, observerPositionWorld, assumptions);
 
-  if (observation.rangeMeters === undefined) reconcilePositionWithBearing(track, observation, observerPositionWorld);
+  if (observation.rangeMeters === undefined) {
+    if (positionIsMeaningless(track, observerPositionWorld)) dropPositionEstimate(track, observerPositionWorld);
+    else fuseBearingIntoPosition(track, observation, observerPositionWorld);
+  }
   applyRangeMeasurement(track, observation, observerPositionWorld, assumptions);
+  if (observation.rangeMeters === undefined) applyPassiveRanging(track, observerPositionWorld, observation.simTime, assumptions);
+}
+
+/**
+ * Distance passive (knowledge/passiveRanging.ts) : sans mesure radar récente, la position est celle
+ * que donnent les gisements recoupés (alliés, manœuvre propre), si la géométrie la rend assez sûre.
+ */
+function applyPassiveRanging(track: Track, observerPositionWorld: Vector3, simTime: number, assumptions: EstimationAssumptions): void {
+  const lastRadarFix = track.rangeFixes[track.rangeFixes.length - 1];
+  if (lastRadarFix && simTime - lastRadarFix.simTime < assumptions.trackRecentSeconds) return;
+  const solution = solvePassiveRange(track, observerPositionWorld, simTime, assumptions);
+  if (!solution) return;
+  track.positionEstimateWorld = solution.position;
+  track.positionUncertaintyMeters = Math.max(solution.rangeUncertaintyMeters, solution.crossRangeUncertaintyMeters);
+  track.crossRangeUncertaintyMeters = solution.crossRangeUncertaintyMeters;
+  track.velocityEstimateWorld = solution.velocity;
+  track.velocityUncertaintyMps = solution.velocity ? solution.velocityUncertaintyMps : undefined;
+  track.positionSource = solution.method;
+  track.maneuvering = false;
+}
+
+/**
+ * Compatibilité d'un gisement d'allié avec une piste (≤ 1 : compatible). Avec une position estimée,
+ * la direction de l'allié vers elle doit tomber dans la précision de son capteur, élargie de toute
+ * l'incertitude de position (vue de côté, celle sur la distance devient latérale). Au gisement
+ * seul, les deux rayons doivent se croiser devant les deux observateurs.
+ */
+export function remoteBearingScore(track: Track, shared: SharedBearing, ownPositionWorld: Vector3): number {
+  if (track.state === "lost") return Number.POSITIVE_INFINITY;
+  if (track.positionEstimateWorld) {
+    const fromRemote = track.positionEstimateWorld.clone().sub(shared.observerPositionWorld);
+    const distance = fromRemote.length();
+    if (distance < 1) return Number.POSITIVE_INFINITY;
+    const angle = angularDistance(fromRemote.divideScalar(distance), shared.bearingWorld);
+    const margin =
+      GATE_SIGMA * shared.bearingUncertaintyRad + Math.atan2(GATE_SIGMA * (track.positionUncertaintyMeters ?? 0), distance) + BEARING_COMPATIBILITY_MARGIN_RAD;
+    return angle / margin;
+  }
+  // Point le plus proche entre les deux rayons : s le long du nôtre, t le long de celui de l'allié.
+  const b1 = track.bearingEstimateWorld;
+  const b2 = shared.bearingWorld;
+  const w0 = ownPositionWorld.clone().sub(shared.observerPositionWorld);
+  const a = b1.dot(b2);
+  const d = b1.dot(w0);
+  const e = b2.dot(w0);
+  const denominator = 1 - a * a;
+  if (denominator < 1e-12) return Number.POSITIVE_INFINITY;
+  const s = (a * e - d) / denominator;
+  const t = (e - a * d) / denominator;
+  if (s <= 0 || t <= 0) return Number.POSITIVE_INFINITY;
+  const miss = ownPositionWorld.clone().addScaledVector(b1, s).sub(shared.observerPositionWorld.clone().addScaledVector(b2, t)).length();
+  const allowed = GATE_SIGMA * (s * track.bearingUncertaintyRad + t * shared.bearingUncertaintyRad) + 1;
+  return miss / allowed;
+}
+
+/** Ajoute un gisement d'allié à la piste (fenêtre bornée) et recalcule la distance passive. */
+export function fuseRemoteBearing(track: Track, shared: SharedBearing, ownPositionWorld: Vector3, assumptions: EstimationAssumptions): void {
+  const fixes = (track.remoteBearingFixes ??= []);
+  fixes.push({
+    simTime: shared.simTime,
+    bearingWorld: shared.bearingWorld.clone(),
+    uncertaintyRad: shared.bearingUncertaintyRad,
+    observerPositionWorld: shared.observerPositionWorld.clone(),
+    observerId: shared.observerId,
+  });
+  const windowStart = shared.simTime - assumptions.velocityWindowSeconds;
+  while (fixes.length > MAX_BEARING_FIXES || (fixes.length > 0 && fixes[0].simTime < windowStart)) fixes.shift();
+  applyPassiveRanging(track, ownPositionWorld, shared.simTime, assumptions);
+}
+
+/**
+ * Un gisement frais recale latéralement la position estimée, comme un filtre : poids de chaque
+ * côté selon son incertitude latérale (la nôtre contre distance × précision du capteur). La
+ * distance, elle, n'en apprend rien. Une contradiction franche est traitée à part.
+ */
+function fuseBearingIntoPosition(track: Track, observation: Observation, observerPositionWorld: Vector3): void {
+  if (!track.positionEstimateWorld) return;
+  const toEstimate = track.positionEstimateWorld.clone().sub(observerPositionWorld);
+  const range = toEstimate.length();
+  if (range < 1) return;
+  const along = toEstimate.dot(observation.bearingWorld);
+  const lateral = toEstimate.clone().addScaledVector(observation.bearingWorld, -along);
+  const estimateSigma = trackLateralUncertaintyMeters(track);
+  const measurementSigma = range * observation.bearingUncertaintyRad;
+  const combined = Math.hypot(estimateSigma, measurementSigma);
+  if (along <= 0 || lateral.length() > BEARING_CONTRADICTION_FACTOR * combined + range * BEARING_COMPATIBILITY_MARGIN_RAD) {
+    reconcilePositionWithBearing(track, observation, observerPositionWorld);
+    return;
+  }
+  const gain = combined > 0 ? (estimateSigma * estimateSigma) / (combined * combined) : 0;
+  track.positionEstimateWorld.addScaledVector(lateral, -gain);
+  track.crossRangeUncertaintyMeters = Math.max(1, combined > 0 ? (estimateSigma * measurementSigma) / combined : 0);
 }
 
 /**
@@ -230,12 +389,14 @@ function reconcilePositionWithBearing(track: Track, observation: Observation, ob
   const range = toEstimate.length();
   if (range < 1) return;
   const angle = angularDistance(toEstimate.divideScalar(range), observation.bearingWorld);
-  const positionAngularUncertainty = Math.atan2(track.positionUncertaintyMeters ?? 0, range);
+  const positionAngularUncertainty = Math.atan2(trackLateralUncertaintyMeters(track), range);
   const allowed = BEARING_CONTRADICTION_FACTOR * observation.bearingUncertaintyRad + positionAngularUncertainty + BEARING_COMPATIBILITY_MARGIN_RAD;
   if (angle <= allowed) return;
 
   track.positionEstimateWorld = observerPositionWorld.clone().addScaledVector(observation.bearingWorld, range);
   track.positionUncertaintyMeters = Math.max(track.positionUncertaintyMeters ?? 0, range * Math.sin(Math.min(angle, Math.PI / 2)), range * observation.bearingUncertaintyRad * BEARING_CONTRADICTION_FACTOR);
+  // Sur le gisement mesuré, seule la distance reste douteuse.
+  track.crossRangeUncertaintyMeters = Math.min(track.positionUncertaintyMeters, range * observation.bearingUncertaintyRad * BEARING_CONTRADICTION_FACTOR);
   track.velocityEstimateWorld = undefined;
   track.velocityUncertaintyMps = undefined;
   track.rangeFixes = [];
@@ -290,8 +451,17 @@ function bearingResidual(fixes: BearingFix[], rate: Vector3): number {
 }
 
 /** Toute mesure donne un gisement daté : la rotation de la ligne de visée s'en déduit (DET-08). */
-function applyBearingMeasurement(track: Track, observation: Observation, assumptions: EstimationAssumptions): void {
-  track.bearingFixes.push({ simTime: observation.simTime, bearingWorld: observation.bearingWorld.clone(), uncertaintyRad: observation.bearingUncertaintyRad });
+function applyBearingMeasurement(track: Track, observation: Observation, observerPositionWorld: Vector3, assumptions: EstimationAssumptions): void {
+  const fix: BearingFix = {
+    simTime: observation.simTime,
+    bearingWorld: observation.bearingWorld.clone(),
+    uncertaintyRad: observation.bearingUncertaintyRad,
+    observerPositionWorld: observerPositionWorld.clone(),
+  };
+  track.bearingFixes.push(fix);
+  const passive = (track.passiveFixes ??= []);
+  passive.push(fix);
+  while (passive.length > MAX_PASSIVE_FIXES || (passive.length > 0 && passive[0].simTime < observation.simTime - assumptions.velocityWindowSeconds)) passive.shift();
   const windowStart = observation.simTime - assumptions.velocityWindowSeconds;
   while (track.bearingFixes.length > MAX_BEARING_FIXES || (track.bearingFixes.length > 2 && track.bearingFixes[0].simTime < windowStart)) {
     track.bearingFixes.shift();
@@ -349,6 +519,9 @@ function applyRangeMeasurement(track: Track, observation: Observation, observerP
     track.positionEstimateWorld = measuredPosition.clone();
     track.positionUncertaintyMeters = measurementUncertainty;
   }
+  // Radar : l'erreur latérale (distance × précision angulaire) domine ; on la prend pour les deux axes.
+  track.crossRangeUncertaintyMeters = track.positionUncertaintyMeters;
+  track.positionSource = "radar";
   classifyFromCrossSection(track, observation);
 }
 
@@ -536,11 +709,16 @@ export function extrapolateTrack(
     // La cible a pu manœuvrer depuis la dernière mesure (dans la limite supposée) : sa vitesse
     // devient moins sûre, et la position en hérite.
     const acceleration = maneuverAcceleration(track, assumptions);
+    // Une manœuvre possible déplace la cible dans toutes les directions : les deux axes grossissent d'autant.
+    const before = track.positionUncertaintyMeters;
     if (track.velocityUncertaintyMps !== undefined) {
       track.velocityUncertaintyMps = Math.min(track.velocityUncertaintyMps + acceleration * dt, assumptions.unknownSpeedMps);
       track.positionUncertaintyMeters += track.velocityUncertaintyMps * dt;
     } else {
       track.positionUncertaintyMeters += acceleration * Math.max(0, age) * dt;
+    }
+    if (track.crossRangeUncertaintyMeters !== undefined) {
+      track.crossRangeUncertaintyMeters = Math.min(track.positionUncertaintyMeters, track.crossRangeUncertaintyMeters + track.positionUncertaintyMeters - before);
     }
   }
   // Piste sans distance : le gisement suit la rotation mesurée de la ligne de visée ; son

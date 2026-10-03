@@ -267,7 +267,7 @@ export class DetectionConsole implements ConsolePanel {
         visual.addTo(this.scope.scene);
         this.trackVisuals.set(track.localId, visual);
       }
-      visual.update(track, body.position);
+      visual.update(track, body.position, this.scope.radius);
     }
     for (const [id, visual] of this.trackVisuals) {
       if (!seenIds.has(id)) {

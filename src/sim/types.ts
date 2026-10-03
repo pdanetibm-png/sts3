@@ -202,6 +202,17 @@ export interface EstimationAssumptions {
    * viennent pas du même objet.
    */
   aspectCrossSectionSpread: number;
+  /**
+   * Distance passive (triangulation, manœuvre) retenue seulement si son incertitude le long de la
+   * ligne de visée reste sous cette fraction de la distance. Optionnelle : défaut dans
+   * knowledge/passiveRanging.ts.
+   */
+  passiveRangingMaxRelativeUncertainty?: number;
+  /**
+   * Manœuvre de la cible tolérée par la distance passive pendant sa fenêtre (G) : hypothèse « cap et
+   * vitesse constants » de la méthode. Optionnelle : défaut dans knowledge/passiveRanging.ts.
+   */
+  passiveRangingManeuverG?: number;
 }
 
 /** Paramètres physiques du modèle de missile embarqué par ce vaisseau (section 6 — même socle dynamique). */

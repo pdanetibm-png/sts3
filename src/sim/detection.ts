@@ -1,3 +1,5 @@
+import type { Vector3 } from "three";
+import { trackAngularUncertaintyRad } from "../knowledge/fusion";
 import type { Observation, Track } from "../knowledge/types";
 import { sameCamp } from "./camps";
 import type { RigidBody, SensorState } from "./rigidBody";
@@ -37,20 +39,20 @@ function updateFollowedSector(observer: RigidBody, state: SensorState): void {
   const track = observer.knowledge.getTrack(state.followedTrackId);
   if (!track) return;
 
-  let angularUncertainty = track.bearingUncertaintyRad;
-  if (track.positionEstimateWorld) {
-    const toTrack = track.positionEstimateWorld.clone().sub(observer.position);
-    const range = toTrack.length();
-    state.scanDirectionWorld = toTrack.normalize();
-    // Viser une position incertaine exige un secteur à sa mesure, sinon le radar la manque.
-    if (range > 1) angularUncertainty = Math.max(angularUncertainty, Math.atan2(track.positionUncertaintyMeters ?? 0, range));
-  } else {
-    state.scanDirectionWorld = track.bearingEstimateWorld.clone();
-  }
-  state.scanHalfAngleRad = Math.max(
-    FOLLOW_MIN_HALF_ANGLE_RAD,
-    Math.min(FOLLOW_MAX_HALF_ANGLE_RAD, angularUncertainty * FOLLOW_UNCERTAINTY_MARGIN),
-  );
+  state.scanDirectionWorld = track.positionEstimateWorld
+    ? track.positionEstimateWorld.clone().sub(observer.position).normalize()
+    : track.bearingEstimateWorld.clone();
+  state.scanHalfAngleRad = sectorHalfAngleFor(track, observer.position);
+}
+
+/**
+ * Demi-angle d'un secteur radar qui couvre une piste : son incertitude LATÉRALE, avec marge. Une
+ * distance mal connue ne change pas la direction à viser, et un secteur plus large raccourcirait
+ * la portée du radar. `minHalfAngleRad` : plancher (doctrine de l'IA, précision du pointage).
+ */
+export function sectorHalfAngleFor(track: Track, observerPositionWorld: Vector3, minHalfAngleRad = FOLLOW_MIN_HALF_ANGLE_RAD): number {
+  const angularUncertainty = trackAngularUncertaintyRad(track, observerPositionWorld);
+  return Math.max(minHalfAngleRad, Math.min(FOLLOW_MAX_HALF_ANGLE_RAD, angularUncertainty * FOLLOW_UNCERTAINTY_MARGIN));
 }
 
 /**
@@ -112,6 +114,30 @@ export function stepDetection(
         observer.position,
       );
       scan.forEach((entry, i) => onIngest?.(observer, tracks[i], entry.sourceId));
+      shareBearings(observer, bodies, scan.map((entry) => entry.observation));
+    }
+  }
+}
+
+/**
+ * Liaison de données : chaque gisement mesuré est transmis aux vaisseaux du même camp, qui le
+ * recoupent avec leurs propres pistes pour trianguler une distance (CONCEPTION_DETECTION.md §13).
+ * Seule la mesure circule (direction, précision, position de l'observateur), jamais une identité.
+ */
+function shareBearings(observer: RigidBody, bodies: RigidBody[], observations: readonly Observation[]): void {
+  for (const mate of bodies) {
+    if (mate === observer || mate.neutralized || !sameCamp(mate.affiliation, observer.affiliation)) continue;
+    for (const observation of observations) {
+      mate.knowledge.ingestRemoteBearing(
+        {
+          observerId: observer.id,
+          observerPositionWorld: observer.position.clone(),
+          simTime: observation.simTime,
+          bearingWorld: observation.bearingWorld.clone(),
+          bearingUncertaintyRad: observation.bearingUncertaintyRad,
+        },
+        mate.position,
+      );
     }
   }
 }
