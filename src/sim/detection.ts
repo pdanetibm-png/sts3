@@ -1,4 +1,4 @@
-import type { Track } from "../knowledge/types";
+import type { Observation, Track } from "../knowledge/types";
 import { sameCamp } from "./camps";
 import type { RigidBody, SensorState } from "./rigidBody";
 import { sensorUnpowered } from "./power";
@@ -94,21 +94,24 @@ export function stepDetection(
       if (state.cycleElapsedSeconds < frame) continue;
       state.cycleElapsedSeconds -= frame;
 
+      // Toutes les mesures du balayage, puis leur rattachement en une fois : une piste n'en reçoit
+      // qu'une (un objet ne renvoie qu'un écho par balayage).
+      const scan: { observation: Observation; sourceId: string }[] = [];
       if (sensor.mode === "radar_passive") {
-        for (const { observation, emitterId } of listenToEmitters(observer, bodies, sensor, simTime, rng)) {
-          const track = observer.knowledge.ingest(observation, observer.position);
-          onIngest?.(observer, track, emitterId);
+        for (const { observation, emitterId } of listenToEmitters(observer, bodies, sensor, simTime, rng)) scan.push({ observation, sourceId: emitterId });
+      } else {
+        for (const target of targets) {
+          if (sameCamp(target.affiliation, observer.affiliation)) continue;
+          const observation = evaluateSensor(observer, target, sensor, simTime, rng);
+          if (observation) scan.push({ observation, sourceId: target.id });
         }
-        continue;
       }
-
-      for (const target of targets) {
-        if (sameCamp(target.affiliation, observer.affiliation)) continue;
-        const observation = evaluateSensor(observer, target, sensor, simTime, rng);
-        if (!observation) continue;
-        const track = observer.knowledge.ingest(observation, observer.position);
-        onIngest?.(observer, track, target.id);
-      }
+      if (scan.length === 0) continue;
+      const tracks = observer.knowledge.ingestScan(
+        scan.map((entry) => entry.observation),
+        observer.position,
+      );
+      scan.forEach((entry, i) => onIngest?.(observer, tracks[i], entry.sourceId));
     }
   }
 }

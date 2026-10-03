@@ -161,3 +161,45 @@ describe("IA — tactique de leurre (CONCEPTION_LEURRES.md §7)", () => {
     expect(drops).toHaveLength(0);
   });
 });
+
+describe("IA — défense terminale (doctrine terminalDefenseSeconds)", () => {
+  const radarState = (body: RigidBody) => body.sensorStates.get(body.sensors.find((s) => s.mode === "radar_active")!.id)!;
+  const missileTrackId = (body: RigidBody) => body.knowledge.tracks.find((t) => t.classification === "missile probable")!.localId;
+
+  it("en pleine dérive, un missile attendu avant le seuil rallume le radar, en Suivi sur lui (la PDC a besoin d'une piste fraîche)", () => {
+    const body = buildAdversary({ ...TEST_DECOY_DOCTRINE, terminalDefenseSeconds: 20 });
+    ingestIncomingMissile(body);
+    body.command.throttle = 0.3;
+    integrateBody(body, dt);
+    stepCombatAI(body, dt, recordingContext().context);
+
+    expect(body.aiState.decoyPhase).toBe("derive");
+    expect(body.command.throttle).toBe(0);
+    expect(radarState(body).enabled).toBe(true);
+    expect(radarState(body).followedTrackId).toBe(missileTrackId(body));
+  });
+
+  it("menace encore au-delà du seuil, ou doctrine sans défense terminale : la dérive reste radar éteint", () => {
+    for (const doctrine of [{ ...TEST_DECOY_DOCTRINE, terminalDefenseSeconds: 5 }, TEST_DECOY_DOCTRINE]) {
+      const body = buildAdversary(doctrine);
+      ingestIncomingMissile(body);
+      body.command.throttle = 0.3;
+      integrateBody(body, dt);
+      stepCombatAI(body, dt, recordingContext().context);
+
+      expect(body.aiState.decoyPhase).toBe("derive");
+      expect(radarState(body).enabled).toBe(false);
+      expect(radarState(body).followedTrackId).toBeNull();
+    }
+  });
+
+  it("une piste de missile perdue faute de mesures sert encore à rallumer le radar : sa position extrapolée dit où chercher", () => {
+    const body = buildAdversary({ ...TEST_DECOY_DOCTRINE, terminalDefenseSeconds: 20 });
+    ingestIncomingMissile(body);
+    const track = body.knowledge.getTrack(missileTrackId(body))!;
+    track.state = "lost";
+    stepCombatAI(body, dt, recordingContext().context);
+    expect(radarState(body).enabled).toBe(true);
+    expect(radarState(body).followedTrackId).toBe(track.localId);
+  });
+});

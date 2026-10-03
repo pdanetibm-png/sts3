@@ -81,7 +81,7 @@ function benchScenario(options: BenchOptions): ScenarioDefinition {
  * (ses capteurs restent éteints). Le bruit ne dépend que de la graine, du pas et de l'objet : le
  * même banc rattaché à un monde repris d'une sauvegarde produit exactement les mêmes mesures.
  */
-function feedFor(world: SimulationWorld, options: BenchOptions, targetIds: readonly string[], crossSectionM2 = 0.1): () => void {
+function feedFor(world: SimulationWorld, options: BenchOptions, targetIds: readonly string[], crossSectionM2 = 0.1, biasWorld = new Vector3()): () => void {
   return () => {
     if (world.stepIndex % 6 !== 0) return;
     const player = world.playerBody!;
@@ -91,8 +91,8 @@ function feedFor(world: SimulationWorld, options: BenchOptions, targetIds: reado
       const noise = createSeededRng(options.seed * 1_000_003 + world.stepIndex * 17 + index);
       const gaussian = () => Math.sqrt(-2 * Math.log(Math.max(1e-12, noise()))) * Math.cos(2 * Math.PI * noise());
       const offset = target.position.clone().sub(player.position);
-      const range = offset.length();
-      const measured = offset.clone().add(new Vector3(0, gaussian(), gaussian()).multiplyScalar(options.trackNoiseMeters / Math.SQRT2));
+      const range = offset.clone().add(biasWorld).length();
+      const measured = offset.clone().add(new Vector3(0, gaussian(), gaussian()).multiplyScalar(options.trackNoiseMeters / Math.SQRT2)).add(biasWorld);
       player.knowledge.ingest(
         {
           simTime: world.simTimeSeconds,
@@ -230,20 +230,17 @@ describe("PDC — conduite de tir", () => {
     expect(world.pdcLog.engagements).toHaveLength(0);
   });
 
-  it("vise la piste, jamais la vérité : une piste décalée de 60 m fait passer toutes les rafales à côté", () => {
+  it("vise la piste, jamais la vérité : un capteur décalé de 60 m fait passer toutes les rafales à côté", () => {
     const options = { seed: 4, speedMps: 500, trackNoiseMeters: 0.2 };
     const { world, missileIds } = buildBench(options);
-    const honest = feedFor(world, options, missileIds);
-    const player = world.playerBody!;
-    // Mesures fidèles, mais la connaissance croit le missile 60 m plus haut qu'il n'est.
-    const biased = () => {
-      honest();
-      for (const track of player.knowledge.tracks) track.positionEstimateWorld?.add(new Vector3(0, 60, 0));
-    };
+    // Capteur mal calibré : chaque mesure place le missile 60 m plus haut qu'il n'est. La piste est
+    // cohérente avec ses mesures, et fausse.
+    const biased = feedFor(world, options, missileIds, 0.1, new Vector3(0, 60, 0));
     advance(world, biased, Math.round(20 / FIXED_DT_SECONDS), missileIds);
     const engagement = world.pdcLog.engagements[0];
     expect(engagement.roundsFired).toBeGreaterThan(100);
-    expect(engagement.closestPass!.missDistanceMeters).toBeGreaterThan(40);
+    // Bien au-delà de la dispersion (quelques mètres) : aucune chance de toucher.
+    expect(engagement.closestPass!.missDistanceMeters).toBeGreaterThan(10 * engagement.closestPass!.sigmaMeters);
     expect(world.missiles.find((m) => m.id === missileIds[0])!.state).not.toBe("abattu");
   });
 

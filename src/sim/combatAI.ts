@@ -68,10 +68,19 @@ export function stepCombatAI(body: RigidBody, dt: number, context: CombatAIConte
   // (vecteur) ou la coupe (dérive, radar éteint).
   const decoyTacticActive = stepDecoyTactic(body, dt, context);
 
+  // Défense terminale : un missile qui arrive bientôt doit être tenu par le radar, sans quoi la PDC
+  // n'a rien à viser. Se taire n'a plus d'intérêt quand l'impact est imminent.
+  const terminalThreat = doctrine.terminalDefenseSeconds !== undefined ? findThreat(body, doctrine.terminalDefenseSeconds, true) : null;
+
   if (radar) {
     const radarState = body.sensorStates.get(radar.id);
     if (radarState) {
-      if (state.decoyPhase === "derive") {
+      // Suivi : la détection recentre le secteur sur la menace à chaque pas, à la mesure de son
+      // incertitude (une piste extrapolée longtemps donne un secteur large, donc une portée courte).
+      radarState.followedTrackId = terminalThreat?.track.localId ?? null;
+      if (terminalThreat) {
+        radarState.enabled = true;
+      } else if (state.decoyPhase === "derive") {
         // Se taire : un radar qui émet trahirait le vaisseau à l'écoute ennemie.
         radarState.enabled = false;
       } else if (hasUsableTrack) {
@@ -103,16 +112,24 @@ export function stepCombatAI(body: RigidBody, dt: number, context: CombatAIConte
   }
 }
 
+interface Threat {
+  track: Track;
+  lineOfSight: THREE.Vector3;
+  relativeVelocity: THREE.Vector3;
+}
+
 /**
  * Menace (CONCEPTION_LEURRES.md §7) : une piste « missile probable » de sa propre connaissance,
  * avec position et vitesse estimées, qui se rapproche et arrive avant `threatSeconds`. Renvoie la
  * plus pressante. Aucune donnée cachée : seule la connaissance du vaisseau est lue (DBG-02).
+ * `includeLost` : une piste perdue faute de mesures garde sa position extrapolée, qui dit au moins
+ * où chercher (un missile en dérive va tout droit) — c'est ce qu'il faut pour rallumer le radar.
  */
-function findThreat(body: RigidBody, threatSeconds: number): { lineOfSight: THREE.Vector3; relativeVelocity: THREE.Vector3 } | null {
-  let best: { lineOfSight: THREE.Vector3; relativeVelocity: THREE.Vector3 } | null = null;
+function findThreat(body: RigidBody, threatSeconds: number, includeLost = false): Threat | null {
+  let best: Threat | null = null;
   let bestTimeToGo = Number.POSITIVE_INFINITY;
   for (const track of body.knowledge.tracks) {
-    if (track.classification !== "missile probable" || track.state === "lost" || !track.positionEstimateWorld || !track.velocityEstimateWorld) continue;
+    if (track.classification !== "missile probable" || (track.state === "lost" && !includeLost) || !track.positionEstimateWorld || !track.velocityEstimateWorld) continue;
     const offset = track.positionEstimateWorld.clone().sub(body.position);
     const distance = offset.length();
     if (distance < 1) continue;
@@ -122,7 +139,7 @@ function findThreat(body: RigidBody, threatSeconds: number): { lineOfSight: THRE
     if (closing <= 0) continue;
     const timeToGo = distance / closing;
     if (timeToGo <= threatSeconds && timeToGo < bestTimeToGo) {
-      best = { lineOfSight, relativeVelocity };
+      best = { track, lineOfSight, relativeVelocity };
       bestTimeToGo = timeToGo;
     }
   }

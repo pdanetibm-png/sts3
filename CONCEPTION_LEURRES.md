@@ -120,12 +120,14 @@ Doctrine en données (champs optionnels ; sans eux, l'IA ne largue jamais) :
 | `decoyVectorSeconds` | Durée de la manœuvre « prendre un vecteur », retournement compris, si l'on ne poussait pas | 20 s |
 | `decoyDriftSeconds` | Dérive moteurs coupés et radar éteint après le largage | 180 s |
 | `decoyCooldownSeconds` | Délai minimal entre deux largages | 120 s |
+| `terminalDefenseSeconds` | Temps d'arrivée estimé d'un missile en deçà duquel le radar le suit, même en dérive (défense terminale) | 20 s |
 
 - **Menace** : une piste « missile probable » de sa propre connaissance, avec position et vitesse estimées, qui se rapproche, et dont le temps d'arrivée estimé est sous `decoyThreatSeconds`. Aucune donnée cachée (DBG-02).
 - **Séquence** :
   1. si le vaisseau pousse : larguer tout de suite ;
   2. sinon, prendre un vecteur perpendiculaire à la ligne de visée de la menace pendant `decoyVectorSeconds`, puis larguer en poussant. La poussée est maximale, bornée par le seuil G de l'équipage (donnée de la fiche équipage, pas une constante). La manœuvre est abandonnée si le vaisseau ne parvient jamais à pousser ;
   3. dans les deux cas, dériver ensuite `decoyDriftSeconds`, moteurs coupés et radar éteint.
+- **Défense terminale** (ajout du 03/10) : quand un missile doit arriver avant `terminalDefenseSeconds`, le radar se rallume en Suivi sur lui, même en pleine dérive. Sans piste fraîche, la PDC n'a rien à viser ; à quelques secondes de l'impact, se taire ne protège plus de rien. Une piste perdue faute de mesures compte encore : sa position extrapolée dit où chercher, et le secteur, élargi à la mesure de son incertitude, la retrouve à courte portée. Sans ce champ, le radar reste éteint pendant toute la dérive.
 - Les deux camps utilisent la même logique.
 - Une piste ennemie alimentée par un leurre à réflecteurs est « vaisseau probable » : l'IA peut tirer dessus. C'est l'effet recherché.
 
@@ -155,7 +157,7 @@ Doctrine en données (champs optionnels ; sans eux, l'IA ne largue jamais) :
 - **Leurres électromagnétiques** (faux échos, brouillage) : étape ultérieure.
 - **Cohérence d'intensité IR** : l'ennemi ne compare pas encore la brillance d'une piste d'une mesure à l'autre. Quand il le fera, un leurre sans générateur deviendra moins crédible, et le générateur prendra tout son sens.
 - **Pistes au gisement seul** (corrigé) : la vitesse angulaire de la ligne de visée est désormais estimée et extrapolée. En 2 contre 2, un vaisseau n'est plus suivi que par une à trois pistes au lieu de dizaines. Reste une fragmentation sur les missiles rapides vus de près en IR seul (mesure toutes les 10 s, rotation trop brusque) : sans distance, c'est inévitable.
-- **Réaction de l'IA** : elle ne réagit qu'à une menace dont elle connaît la position **et** la vitesse. Un missile vu de face renvoie un petit écho. À l'échelle des tests, l'ennemi ne le détecte qu'à 2 km, moins de 2 s avant l'impact, sans vitesse estimée : il ne réagit pas. De plus, la fusion découpe en plusieurs pistes un contact plus rapide que la vitesse supposée des inconnus (`unknownSpeedMps`). À l'échelle réelle, le radar en secteur voit un missile de face à quelques centaines de km ; c'est à vérifier en partie.
+- **Réaction de l'IA** (corrigé) : à l'échelle réelle, le radar en secteur voit un missile de face vers 330 à 385 km, et l'IA largue bien son leurre. Le vrai défaut était ailleurs : elle éteignait ensuite son radar pour toute la dérive, et sa PDC n'avait plus rien à viser à l'arrivée du missile. D'où la défense terminale (§7). Restent deux limites : à l'échelle des tests (capteurs réglés sur quelques km), un missile de face n'est vu qu'à 2 km ; et un contact plus rapide que `unknownSpeedMps` est découpé en plusieurs pistes tant que sa vitesse n'est pas estimée (10 km/s dans la démo, qu'une torpille Epstein peut dépasser).
 - **Collision** (corrigé) : le test d'impact se fait dans le repère de la cible, déplacement pendant le pas compris.
 - **Surface radar** indépendante de la longueur d'onde : cohérent tant que tous les radars du catalogue sont en bande X.
 
@@ -165,7 +167,7 @@ Doctrine en données (champs optionnels ; sans eux, l'IA ne largue jamais) :
 |---|---|
 | `tests/decoy.physics.test.ts` | Largage (stock, position, vitesse, vecteur repris, refus) ; accélération imitée tenue et bornée ; débit `F / (Isp·g₀)` ; épuisement puis dérive ; largage sans poussée ; générateur IR (imitation du jet, borne, consommation, charge épuisée) ; leurre léger ; frontière du théâtre |
 | `tests/decoy.detection.test.ts` | Leurre à réflecteurs « vaisseau probable », léger « missile probable » ; aucune piste sur un leurre ami ; missile contre leurre (destruction mutuelle unique) ; pas de tir fratricide |
-| `tests/decoy.ai.test.ts` | Largage sur menace en poussée, puis dérive moteurs coupés et radar éteint ; vecteur perpendiculaire puis largage ; délai minimal ; pas de tactique sans stock ou sans doctrine ; une piste de vaisseau n'est pas une menace |
+| `tests/decoy.ai.test.ts` | Largage sur menace en poussée, puis dérive moteurs coupés et radar éteint ; vecteur perpendiculaire puis largage ; délai minimal ; pas de tactique sans stock ou sans doctrine ; une piste de vaisseau n'est pas une menace ; défense terminale (radar rallumé en Suivi sur un missile imminent, même sur piste perdue ; rien au-delà du seuil ni sans le champ) |
 | `tests/decoy.credibility.test.ts` | Tactique complète face à l'IA : le leurre à réflecteurs reprend la piste et attire les tirs, le léger non ; en travers, contact « vaisseau probable » distinct |
 | `tests/decoy.save.test.ts` | Reprise identique à l'exécution continue (leurre en vol, IA en pleine tactique) ; largage rejoué exactement ; refus du schéma antérieur |
 | `tests/decoy.catalog.test.ts` | Fiches de démo ; catalogue sans leurres toujours valide ; références et fiches invalides refusées |

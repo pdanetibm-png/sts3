@@ -163,6 +163,12 @@ export interface DoctrineDef {
   decoyDriftSeconds?: number;
   /** Délai minimal entre deux largages. */
   decoyCooldownSeconds?: number;
+  /**
+   * Défense terminale — optionnel : sans lui, le radar ne quitte jamais la piste visée pour une
+   * menace. Temps d'arrivée estimé d'un missile en deçà duquel le radar le suit, même pendant la
+   * dérive d'une tactique de leurre : sans piste fraîche, la PDC n'a rien à viser.
+   */
+  terminalDefenseSeconds?: number;
 }
 
 /**

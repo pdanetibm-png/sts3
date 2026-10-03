@@ -196,7 +196,8 @@
         "decoyThreatSeconds": 60,
         "decoyVectorSeconds": 20,
         "decoyDriftSeconds": 180,
-        "decoyCooldownSeconds": 120
+        "decoyCooldownSeconds": 120,
+   "terminalDefenseSeconds": 20
       }
     ],
     "decoys": [

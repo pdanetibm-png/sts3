@@ -1,6 +1,6 @@
 import type { Vector3 } from "three";
 import type { EstimationAssumptions } from "../sim/types";
-import { createTrackFromObservation, DEFAULT_ESTIMATION_ASSUMPTIONS, extrapolateTrack, findCompatibleTrack, fuseObservationIntoTrack } from "./fusion";
+import { associationCandidates, createTrackFromObservation, DEFAULT_ESTIMATION_ASSUMPTIONS, extrapolateTrack, fuseObservationIntoTrack } from "./fusion";
 import type { FriendlyContact, Observation, Track } from "./types";
 
 /**
@@ -41,15 +41,45 @@ export class KnowledgeBase {
 
   /** Intègre une mesure de capteur : fusion avec une piste compatible, sinon nouvelle piste candidate. */
   ingest(observation: Observation, observerPositionWorld: Vector3): Track {
-    const { track, ambiguous } = findCompatibleTrack(this.tracks, observation, observerPositionWorld, this.assumptions);
-    if (track) {
-      fuseObservationIntoTrack(track, observation, observerPositionWorld, this.assumptions);
-      track.ambiguous = ambiguous;
-      return track;
+    return this.ingestScan([observation], observerPositionWorld)[0];
+  }
+
+  /**
+   * Intègre les mesures d'un même balayage d'un capteur. Un objet ne renvoie qu'un écho par
+   * balayage : une piste ne reçoit donc qu'une mesure du balayage, et deux objets voisins vus
+   * ensemble ne se fondent jamais dans la même piste. Les rattachements sont choisis du plus
+   * vraisemblable au moins vraisemblable, sur l'état des pistes d'avant le balayage ; une mesure
+   * restée sans piste en ouvre une. Renvoie la piste de chaque mesure, dans l'ordre reçu.
+   */
+  ingestScan(observations: readonly Observation[], observerPositionWorld: Vector3): Track[] {
+    const tracks = this.tracks;
+    const pairs: { index: number; track: Track; cost: number }[] = [];
+    const candidateCounts = observations.map((observation, index) => {
+      const candidates = associationCandidates(tracks, observation, observerPositionWorld, this.assumptions);
+      for (const candidate of candidates) pairs.push({ index, track: candidate.track, cost: candidate.cost });
+      return candidates.length;
+    });
+    // Tri stable : à coût égal, l'ordre des mesures puis des pistes départage (déterminisme).
+    pairs.sort((a, b) => a.cost - b.cost);
+    const assigned: (Track | undefined)[] = observations.map(() => undefined);
+    const taken = new Set<Track>();
+    for (const pair of pairs) {
+      if (assigned[pair.index] || taken.has(pair.track)) continue;
+      assigned[pair.index] = pair.track;
+      taken.add(pair.track);
     }
-    const newTrack = createTrackFromObservation(`piste-${this.nextTrackNumber++}`, observation, observerPositionWorld, this.assumptions);
-    this.tracksById.set(newTrack.localId, newTrack);
-    return newTrack;
+
+    return observations.map((observation, index) => {
+      const track = assigned[index];
+      if (track) {
+        fuseObservationIntoTrack(track, observation, observerPositionWorld, this.assumptions);
+        track.ambiguous = candidateCounts[index] > 1;
+        return track;
+      }
+      const newTrack = createTrackFromObservation(`piste-${this.nextTrackNumber++}`, observation, observerPositionWorld, this.assumptions);
+      this.tracksById.set(newTrack.localId, newTrack);
+      return newTrack;
+    });
   }
 
   /** Restaure les pistes depuis une sauvegarde (section 10) — remplace tout contenu existant.

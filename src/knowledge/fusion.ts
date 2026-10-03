@@ -54,11 +54,44 @@ function angularDistance(a: Vector3, b: Vector3): number {
   return Math.acos(dot);
 }
 
+/** Une piste candidate pour une mesure : compatible (`score` ≤ 1), et son coût de rattachement. */
+export interface AssociationCandidate {
+  track: Track;
+  /** Écart rapporté à la fenêtre d'association (≤ 1 : compatible). */
+  score: number;
+  /**
+   * Coût de rattachement (vraisemblance négative) : l'écart rapporté à l'incertitude, plus la
+   * taille de la fenêtre. À écart égal, la piste qui prédisait la mesure le plus précisément
+   * l'emporte : une piste très incertaine ne doit pas attirer toutes les mesures de sa direction.
+   */
+  cost: number;
+}
+
+/** Pistes compatibles avec une mesure, de la plus vraisemblable à la moins vraisemblable. */
+export function associationCandidates(
+  tracks: Track[],
+  observation: Observation,
+  observerPositionWorld: Vector3 = new Vector3(),
+  assumptions: EstimationAssumptions = DEFAULT_ESTIMATION_ASSUMPTIONS,
+): AssociationCandidate[] {
+  const candidates: AssociationCandidate[] = [];
+  for (const track of tracks) {
+    const gate = associationGate(track, observation, observerPositionWorld, assumptions);
+    if (!gate) continue;
+    const score = gate.distance / gate.width;
+    if (score > 1) continue;
+    // Fenêtre ≈ GATE_SIGMA écarts-types : coût gaussien en écarts-types, plus le volume de la fenêtre.
+    const sigmas = GATE_SIGMA * score;
+    candidates.push({ track, score, cost: 0.5 * sigmas * sigmas + gate.dimensions * Math.log(Math.max(gate.width, 1e-12)) });
+  }
+  return candidates.sort((a, b) => a.cost - b.cost);
+}
+
 /**
  * Rattache une mesure à la piste la plus compatible (DET-06). Avec une distance mesurée et une
  * position connue, la compatibilité est géométrique (distance en 3D rapportée aux
  * incertitudes) : deux contacts proches en gisement mais séparés en distance ne fusionnent
- * plus. Sans distance, on compare les directions. Plusieurs candidats ⇒ le plus compatible est
+ * plus. Sans distance, on compare les directions. Plusieurs candidats ⇒ le plus vraisemblable est
  * retenu mais `ambiguous` signale le doute, jamais résolu par un identifiant réel caché.
  */
 export function findCompatibleTrack(
@@ -67,13 +100,8 @@ export function findCompatibleTrack(
   observerPositionWorld: Vector3 = new Vector3(),
   assumptions: EstimationAssumptions = DEFAULT_ESTIMATION_ASSUMPTIONS,
 ): { track: Track | null; ambiguous: boolean } {
-  const candidates: { track: Track; score: number }[] = [];
-  for (const track of tracks) {
-    const score = compatibilityScore(track, observation, observerPositionWorld, assumptions);
-    if (score <= 1) candidates.push({ track, score });
-  }
+  const candidates = associationCandidates(tracks, observation, observerPositionWorld, assumptions);
   if (candidates.length === 0) return { track: null, ambiguous: false };
-  candidates.sort((a, b) => a.score - b.score);
   return { track: candidates[0].track, ambiguous: candidates.length > 1 };
 }
 
@@ -83,8 +111,17 @@ function maneuverAcceleration(track: Track, assumptions: EstimationAssumptions):
   return g * STANDARD_GRAVITY_MPS2;
 }
 
-/** ≤ 1 : compatible (plus petit = plus proche). */
-function compatibilityScore(track: Track, observation: Observation, observerPositionWorld: Vector3, assumptions: EstimationAssumptions): number {
+/**
+ * Écart entre la mesure et la piste, et largeur de la fenêtre d'association, dans une même unité :
+ * mètres si la mesure donne une distance, radians sinon (`dimensions` : 3 ou 2). `null` : la mesure
+ * ne peut pas venir de cet objet (échos de tailles incompatibles).
+ */
+function associationGate(
+  track: Track,
+  observation: Observation,
+  observerPositionWorld: Vector3,
+  assumptions: EstimationAssumptions,
+): { distance: number; width: number; dimensions: number } | null {
   const positionUncertainty = track.positionUncertaintyMeters ?? 0;
   // Deux échos de tailles incompatibles ne viennent pas du même objet : un missile qui se sépare
   // de son lanceur ne corrompt pas la piste du lanceur. Un même vaisseau varie pourtant beaucoup
@@ -94,31 +131,36 @@ function compatibilityScore(track: Track, observation: Observation, observerPosi
     const logNoise = observation.crossSectionLogUncertainty ?? DEFAULT_CROSS_SECTION_LOG_UNCERTAINTY;
     const samples = Math.max(1, track.crossSectionSamples ?? 1);
     const tolerance = Math.log(assumptions.aspectCrossSectionSpread) + GATE_SIGMA * logNoise * Math.sqrt(1 + 1 / samples);
-    if (Math.abs(Math.log(observation.crossSectionEstimateM2 / track.crossSectionEstimateM2)) > tolerance) return Number.POSITIVE_INFINITY;
+    if (Math.abs(Math.log(observation.crossSectionEstimateM2 / track.crossSectionEstimateM2)) > tolerance) return null;
   }
-  if (track.positionEstimateWorld && observation.rangeMeters !== undefined) {
-    const measured = observerPositionWorld.clone().addScaledVector(observation.bearingWorld, observation.rangeMeters);
-    const measurementUncertainty = Math.hypot(observation.rangeUncertaintyMeters ?? 0, observation.rangeMeters * observation.bearingUncertaintyRad);
-    // Une cible qui manœuvre (dans la limite supposée) s'écarte de l'estimation à vitesse
-    // constante : depuis la dernière mesure, et par le retard de la régression sur sa fenêtre.
+  const range = observation.rangeMeters;
+  if (track.positionEstimateWorld && range !== undefined) {
+    const measured = observerPositionWorld.clone().addScaledVector(observation.bearingWorld, range);
+    const measurementUncertainty = Math.hypot(observation.rangeUncertaintyMeters ?? 0, range * observation.bearingUncertaintyRad);
+    // Une cible qui manœuvre (dans la limite supposée) s'écarte de l'estimation à vitesse constante
+    // depuis la dernière mesure. Le retard de la régression sur sa fenêtre, lui, est déjà compté
+    // dans l'incertitude de position, borné par ce que les mesures permettent de détecter
+    // (`fitMotion`) : le recompter ici élargissait la fenêtre à des centaines de km sur une
+    // longue fenêtre, et deux missiles voisins finissaient dans la même piste.
     const acceleration = maneuverAcceleration(track, assumptions);
     const sinceLast = Math.max(0, observation.simTime - track.lastObservationSimTime);
-    const fixes = track.rangeFixes;
-    const windowSpan = fixes.length > 1 ? fixes[fixes.length - 1].simTime - fixes[0].simTime : 0;
     // Sans vitesse estimée, la mesure est comparée à la dernière position : la cible a pu parcourir
     // jusqu'à la vitesse maximale supposée depuis.
     const motionAllowance = track.velocityEstimateWorld ? 0 : assumptions.unknownSpeedMps * sinceLast;
-    const maneuverAllowance = 0.5 * acceleration * sinceLast * sinceLast + (acceleration * windowSpan * windowSpan) / 8 + motionAllowance;
-    const gate = GATE_SIGMA * Math.hypot(positionUncertainty, measurementUncertainty) + maneuverAllowance + 1;
-    return measured.distanceTo(track.positionEstimateWorld) / gate;
+    const maneuverAllowance = 0.5 * acceleration * sinceLast * sinceLast + motionAllowance;
+    const width = GATE_SIGMA * Math.hypot(positionUncertainty, measurementUncertainty) + maneuverAllowance + 1;
+    return { distance: measured.distanceTo(track.positionEstimateWorld), width, dimensions: 3 };
   }
+  // Comparaison des directions ; ramenée en mètres à la distance mesurée quand il y en a une.
+  const scale = range !== undefined ? Math.max(range, 1) : 1;
+  const dimensions = range !== undefined ? 3 : 2;
   if (track.positionEstimateWorld) {
     const toTrack = track.positionEstimateWorld.clone().sub(observerPositionWorld);
-    const range = toTrack.length();
-    if (range > 1) {
+    const trackRange = toTrack.length();
+    if (trackRange > 1) {
       const margin =
-        GATE_SIGMA * observation.bearingUncertaintyRad + Math.atan2(GATE_SIGMA * positionUncertainty, range) + BEARING_COMPATIBILITY_MARGIN_RAD;
-      return angularDistance(toTrack.divideScalar(range), observation.bearingWorld) / margin;
+        GATE_SIGMA * observation.bearingUncertaintyRad + Math.atan2(GATE_SIGMA * positionUncertainty, trackRange) + BEARING_COMPATIBILITY_MARGIN_RAD;
+      return { distance: angularDistance(toTrack.divideScalar(trackRange), observation.bearingWorld) * scale, width: margin * scale, dimensions };
     }
   }
   // Sans vitesse angulaire estimée (une seule mesure), la ligne de visée a pu tourner depuis, au
@@ -126,7 +168,7 @@ function compatibilityScore(track: Track, observation: Observation, observerPosi
   const sinceLast = Math.max(0, observation.simTime - track.lastObservationSimTime);
   const unknownRotation = track.bearingRateWorld ? 0 : (assumptions.unknownBearingRateRadPerSecond ?? DEFAULT_UNKNOWN_BEARING_RATE) * sinceLast;
   const margin = (track.bearingUncertaintyRad + observation.bearingUncertaintyRad) * BEARING_COMPATIBILITY_FACTOR + BEARING_COMPATIBILITY_MARGIN_RAD + unknownRotation;
-  return angularDistance(track.bearingEstimateWorld, observation.bearingWorld) / margin;
+  return { distance: angularDistance(track.bearingEstimateWorld, observation.bearingWorld) * scale, width: margin * scale, dimensions };
 }
 
 export function createTrackFromObservation(
