@@ -478,12 +478,6 @@ export class CrossSectionConsole implements ConsolePanel {
         if (batteryFraction < 0.2) return { status: "warn", text: `Batterie ${(batteryFraction * 100).toFixed(0)} %` };
         return { status: "ok", text: "Alimentation nominale" };
       }
-      case "vie": {
-        if (body.lifeSupportFailed) return { status: "alert", text: "SUPPORT VIE HORS SERVICE" };
-        const lifeShed = shed.some((cid) => body.consumers.find((c) => c.id === cid)?.priorityGroup === "vie");
-        if (lifeShed) return { status: "alert", text: `Sur secours · ${body.lifeSupportRemainingAutonomySeconds.toFixed(0)} s` };
-        return { status: "ok", text: "Atmosphère nominale" };
-      }
     }
   }
 
@@ -498,6 +492,13 @@ export class CrossSectionConsole implements ConsolePanel {
         return { status: exposure > 0.5 ? "warn" : "idle", text: `Charge G équipage ${(exposure * 100).toFixed(0)} %` };
       case "sas":
         return { status: "idle", text: "Portes verrouillées" };
+      case "vie": {
+        if (body.lifeSupportFailed) return { status: "alert", text: "SUPPORT VIE HORS SERVICE" };
+        const shed = body.lastPowerStep?.shedConsumerIds ?? [];
+        const lifeShed = shed.some((cid) => body.consumers.find((c) => c.id === cid)?.priorityGroup === "vie");
+        if (lifeShed) return { status: "alert", text: `Sur secours · ${body.lifeSupportRemainingAutonomySeconds.toFixed(0)} s` };
+        return { status: "ok", text: "Atmosphère nominale" };
+      }
       case "missiles": {
         if (body.missileCount === 0) return { status: "warn", text: "Soute vide" };
         return { status: "ok", text: `${body.missileCount}/${this.missileCapacity} en soute · parés` };

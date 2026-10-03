@@ -126,6 +126,8 @@ export class SphereScope {
     this.canvas = el("canvas", "sphere-scope-canvas");
     this.overlay = el("div", "sphere-scope-overlay");
     this.element.append(this.canvas, this.overlay);
+    // Les commandes de vue sont à la souris uniquement (plus de boutons − / + / Recentrer).
+    this.overlay.appendChild(el("div", "scope-hint", "Glisser : tourner · molette : zoom · double-clic : recentrer · clic sur un contact : sélection"));
 
     this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));

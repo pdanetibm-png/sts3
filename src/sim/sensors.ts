@@ -14,7 +14,14 @@ import {
   radarSnr,
 } from "./sensorPhysics";
 import { infraredIntensityToward, radarCrossSectionToward, type SignatureSource } from "./signature";
-import type { Affiliation, SensorDef } from "./types";
+import type { Affiliation, SensorDef, SensorMode } from "./types";
+
+/** Nom d'un mode de capteur tel qu'il s'affiche (journal, fiche de contact). */
+export const SENSOR_MODE_LABELS: Record<SensorMode, string> = {
+  ir_passive: "IR",
+  radar_passive: "écoute radar",
+  radar_active: "radar",
+};
 
 function gaussianNoise(rng: () => number, stdDev: number): number {
   if (stdDev <= 0) return 0;

@@ -2,8 +2,9 @@ import { electricalLoads, type ElectricalLoad } from "../../sim/power";
 import type { RigidBody } from "../../sim/rigidBody";
 import type { SimulationWorld } from "../../sim/world";
 import { el } from "../dom";
-import { deckGroup, lamp, meterRow, screen, setLamp, stationShell } from "../station/stationKit";
+import { lamp, screen, setLamp, stationShell } from "../station/stationKit";
 import type { ConsolePanel } from "./consoleTypes";
+import { LifeSupportPanel } from "./lifeSupportPanel";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 const CONSUMER_ROW_HEIGHT = 74;
@@ -62,40 +63,40 @@ function escapeXml(text: string): string {
   return text.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 }
 
-/** Poste Ingénierie (section 8.5) — lecture seule : réserves, générateur/batterie, consommateurs. */
+/**
+ * Poste Ingénierie (sections 8.5 et 8.6) — lecture seule : synoptique énergie (réserves, générateur,
+ * batterie, consommateurs), bilan de puissance et support vie. Aucune commande, donc pas de pupitre.
+ */
 export class EngineeringConsole implements ConsolePanel {
   readonly element: HTMLElement;
 
   private readonly body: RigidBody;
   private readonly svg: SVGSVGElement;
-  private readonly fuelReadout: HTMLElement;
-  private readonly fuelBar: HTMLElement;
-  private readonly batteryReadout: HTMLElement;
-  private readonly batteryBar: HTMLElement;
   private readonly massReadout: HTMLElement;
   private readonly missileReadout: HTMLElement;
   private readonly generatorStatusReadout: HTMLElement;
   private readonly powerBalanceReadout: HTMLElement;
   private readonly batteryModeReadout: HTMLElement;
-  private readonly consumerLamps = new Map<string, HTMLElement>();
-  private readonly modeLamps: Record<"recharge" | "generateur" | "secours", HTMLElement>;
+  private readonly lifeSupport: LifeSupportPanel;
   private readonly fuelLimitedLamp: HTMLElement;
   private readonly shedLamp: HTMLElement;
   private readonly lowBatteryLamp: HTMLElement;
   private rotorAngle = 0;
 
-  constructor(world: SimulationWorld, playerBodyId: string, onBack: () => void) {
+  constructor(world: SimulationWorld, playerBodyId: string) {
     const body = world.getBody(playerBodyId);
     if (!body) throw new Error(`Corps introuvable : ${playerBodyId}`);
     this.body = body;
 
-    const shell = stationShell("04", "Ingénierie", "Énergie · propergol · masse", onBack, "engineering-station");
+    const shell = stationShell("04", "Ingénierie", "Énergie · propergol · support vie", "engineering-station");
     this.element = shell.root;
     this.shedLamp = lamp("Délestage", "danger");
     this.lowBatteryLamp = lamp("Batterie basse", "warning");
     this.fuelLimitedLamp = lamp("Génér. limité", "warning");
-    shell.lamps.append(this.shedLamp, this.lowBatteryLamp, this.fuelLimitedLamp);
+    this.lifeSupport = new LifeSupportPanel(body);
+    shell.lamps.append(this.shedLamp, this.lowBatteryLamp, this.fuelLimitedLamp, this.lifeSupport.lamp);
 
+    // Le synoptique porte déjà les réserves (propergol, batterie) et l'état de chaque consommateur.
     const synoptic = screen("Synoptique énergie", "screen-main screen-synoptic");
     // Consommateurs fixes et capteurs : un radar allumé est une charge comme une autre (section 4.3).
     synoptic.glass.innerHTML = buildSynopticSvg(electricalLoads(body));
@@ -103,58 +104,22 @@ export class EngineeringConsole implements ConsolePanel {
     synoptic.glass.appendChild(el("div", "screen-caption", "Priorités électriques en lecture seule — délestage automatique du moins prioritaire"));
     shell.main.appendChild(synoptic.frame);
 
-    const reserves = screen("Réserves", "screen-grow");
-    this.fuelReadout = el("span", "screen-meter-value");
-    const fuelTrack = el("div", "g-bar-track");
-    this.fuelBar = el("div", "g-bar-fill");
-    fuelTrack.appendChild(this.fuelBar);
-    this.batteryReadout = el("span", "screen-meter-value");
-    const batteryTrack = el("div", "g-bar-track");
-    this.batteryBar = el("div", "g-bar-fill");
-    batteryTrack.appendChild(this.batteryBar);
-    this.massReadout = el("div", "screen-line");
-    this.missileReadout = el("div", "screen-line");
-    reserves.glass.append(
-      meterRow("Propergol", fuelTrack, this.fuelReadout),
-      meterRow("Batterie", batteryTrack, this.batteryReadout),
-      el("div", "screen-section", "Masse et armement"),
-      this.massReadout,
-      this.missileReadout,
-    );
-
     const balance = screen("Bilan de puissance");
     this.generatorStatusReadout = el("div", "screen-line");
     this.powerBalanceReadout = el("div", "screen-line screen-line-big");
     this.batteryModeReadout = el("div", "screen-line screen-line-dim");
-    balance.glass.append(this.powerBalanceReadout, this.generatorStatusReadout, this.batteryModeReadout);
-    shell.side.append(reserves.frame, balance.frame);
-
-    const consumersGroup = deckGroup("Consommateurs — alimentation");
-    const consumerGrid = el("div", "lamp-grid");
-    for (const consumer of electricalLoads(body)) {
-      const node = lamp(consumer.label, "ok");
-      this.consumerLamps.set(consumer.id, node);
-      consumerGrid.appendChild(node);
-    }
-    consumersGroup.appendChild(consumerGrid);
-    shell.deck.appendChild(consumersGroup);
-
-    const batteryGroup = deckGroup("Mode batterie");
-    this.modeLamps = {
-      recharge: lamp("Recharge", "info"),
-      generateur: lamp("Générateur seul", "ok"),
-      secours: lamp("Secours", "warning"),
-    };
-    const modeGrid = el("div", "lamp-grid");
-    modeGrid.append(this.modeLamps.recharge, this.modeLamps.generateur, this.modeLamps.secours);
-    batteryGroup.appendChild(modeGrid);
-    shell.deck.appendChild(batteryGroup);
-
-    const noteGroup = deckGroup("Consignes");
-    noteGroup.appendChild(
-      el("p", "deck-note", "Le générateur consomme le propergol tant qu'il en reste ; la batterie sert de secours. Priorités en lecture seule à cette étape."),
+    this.massReadout = el("div", "screen-line");
+    this.missileReadout = el("div", "screen-line screen-line-dim");
+    balance.glass.append(
+      this.powerBalanceReadout,
+      this.generatorStatusReadout,
+      this.batteryModeReadout,
+      el("div", "screen-section", "Masse et emport"),
+      this.massReadout,
+      this.missileReadout,
     );
-    shell.deck.append(noteGroup, el("div", "deck-vent"));
+    shell.side.append(balance.frame, this.lifeSupport.frame);
+    shell.deck.remove();
   }
 
   update(realDeltaSeconds: number): void {
@@ -162,21 +127,14 @@ export class EngineeringConsole implements ConsolePanel {
     const power = body.lastPowerStep;
 
     const fuelFraction = body.reservoir.quantityKg / body.reservoir.capacityKg;
-    this.fuelReadout.textContent = `${clampPercent(fuelFraction).toFixed(0)} %`;
-    this.fuelBar.style.width = `${clampPercent(fuelFraction)}%`;
-    this.fuelBar.classList.toggle("g-bar-over", fuelFraction < 0.2);
-
     const batteryFraction = power?.batteryStateOfChargeFraction ?? body.battery.currentChargeWattSeconds / body.battery.capacityWattSeconds;
-    this.batteryReadout.textContent = `${clampPercent(batteryFraction).toFixed(0)} %`;
-    this.batteryBar.style.width = `${clampPercent(batteryFraction)}%`;
-    this.batteryBar.classList.toggle("g-bar-over", batteryFraction < 0.2);
 
     const mode: "recharge" | "generateur" | "secours" = !power ? "generateur" : power.batteryFlowWatts > 1 ? "recharge" : power.batteryFlowWatts < -1 ? "secours" : "generateur";
     if (power) {
       const fuelNote = power.generatorFuelLimited ? " — limité par le carburant restant" : "";
       this.generatorStatusReadout.textContent = `Générateur ${(power.generatorOutputWatts / 1000).toFixed(1)} kW${fuelNote}`;
       this.powerBalanceReadout.textContent = `${(power.suppliedWatts / 1000).toFixed(1)} / ${(power.demandWatts / 1000).toFixed(1)} kW`;
-      this.batteryModeReadout.textContent = `Fournis / demandés · batterie ${(power.batteryFlowWatts / 1000).toFixed(1)} kW (${mode === "secours" ? "décharge" : mode === "recharge" ? "charge" : "au repos"})`;
+      this.batteryModeReadout.textContent = `Fournis / demandés · batterie ${(power.batteryFlowWatts / 1000).toFixed(1)} kW (${mode === "secours" ? "en secours, décharge" : mode === "recharge" ? "en recharge" : "au repos"})`;
     } else {
       this.generatorStatusReadout.textContent = "Générateur : indisponible";
       this.powerBalanceReadout.textContent = "—";
@@ -187,23 +145,15 @@ export class EngineeringConsole implements ConsolePanel {
     const decoys = body.decoy ? ` · ${body.decoyCount} leurre${body.decoyCount > 1 ? "s" : ""}` : "";
     const pdcRounds = body.pdcMounts.reduce((sum, m) => sum + m.roundsRemaining, 0);
     const pdc = body.pdcMounts.length > 0 ? ` · PDC ${pdcRounds} obus` : "";
-    this.missileReadout.textContent = `${body.missileCount} missile${body.missileCount > 1 ? "s" : ""}${decoys} ${pdc} en magasin · ${body.reservoir.quantityKg.toFixed(0)} kg de propergol`;
+    this.missileReadout.textContent = `${body.missileCount} missile${body.missileCount > 1 ? "s" : ""}${decoys}${pdc} en magasin`;
 
     const shed = new Set(power?.shedConsumerIds ?? []);
-    for (const load of electricalLoads(body)) {
-      const node = this.consumerLamps.get(load.id);
-      if (!node) continue;
-      setLamp(node, load.active && !shed.has(load.id));
-      node.classList.toggle("hw-lamp-fault", shed.has(load.id));
-    }
-    setLamp(this.modeLamps.recharge, mode === "recharge");
-    setLamp(this.modeLamps.generateur, mode === "generateur");
-    setLamp(this.modeLamps.secours, mode === "secours");
     setLamp(this.shedLamp, shed.size > 0);
     setLamp(this.lowBatteryLamp, batteryFraction < 0.2);
     setLamp(this.fuelLimitedLamp, !!power?.generatorFuelLimited);
 
     this.updateSynoptic(body, fuelFraction, batteryFraction, shed, realDeltaSeconds);
+    this.lifeSupport.update();
   }
 
   private updateSynoptic(body: RigidBody, fuelFraction: number, batteryFraction: number, shed: Set<string>, realDeltaSeconds: number): void {
@@ -251,8 +201,4 @@ export class EngineeringConsole implements ConsolePanel {
   dispose(): void {
     this.element.remove();
   }
-}
-
-function clampPercent(fraction: number): number {
-  return Number.isFinite(fraction) ? Math.max(0, Math.min(100, fraction * 100)) : 0;
 }

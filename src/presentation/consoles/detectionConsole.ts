@@ -15,6 +15,7 @@ import { deckField, deckGroup, hwKey, hwToggle, lamp, lcdInput, screen, setLamp,
 import type { ConsolePanel } from "./consoleTypes";
 import { commandsLocked, refuseIfLocked } from "../commandGuard";
 import { sensorUnpowered } from "../../sim/power";
+import type { TrackSelection } from "../trackSelection";
 
 const WIDE_SCAN_HALF_ANGLE_RAD = THREE.MathUtils.degToRad(80);
 
@@ -51,16 +52,23 @@ export class DetectionConsole implements ConsolePanel {
   private readonly trackListView: TrackListView;
   private readonly contactSheetSlot: HTMLElement;
 
-  private selectedTrackId: string | null = null;
+  /** Piste commune à tous les postes (affichage et fiche). */
+  private readonly selection: TrackSelection;
+  /**
+   * Piste que le Suivi doit tenir : celle choisie dans CE poste, ou la sélection commune au moment
+   * où l'on enclenche le Suivi. Choisir une piste dans un autre poste ne redirige jamais le radar.
+   */
+  private followTargetId: string | null = null;
   private radarSectorMode = false;
 
-  constructor(world: SimulationWorld, playerBodyId: string, onBack: () => void) {
+  constructor(world: SimulationWorld, playerBodyId: string, selection: TrackSelection) {
     this.world = world;
     const body = world.getBody(playerBodyId);
     if (!body) throw new Error(`Corps introuvable : ${playerBodyId}`);
     this.body = body;
+    this.selection = selection;
 
-    const shell = stationShell("02", "Détection", "Capteurs · pistes · contacts", onBack, "detection-station");
+    const shell = stationShell("02", "Détection", "Capteurs · pistes · contacts", "detection-station");
     this.element = shell.root;
     this.radarLamp = lamp("Radar émet", "warning");
     this.contactLamp = lamp("Contact", "info");
@@ -71,7 +79,6 @@ export class DetectionConsole implements ConsolePanel {
     shell.main.appendChild(scopeScreen.frame);
     this.scope = new SphereScope((id) => this.selectTrack(id));
     scopeScreen.glass.appendChild(this.scope.element);
-    scopeScreen.glass.appendChild(el("div", "screen-caption", "Glisser : tourner · molette : zoom · double-clic : recentrer · clic sur un contact : sélection"));
 
     const radarSensor = body.sensors.find((s) => s.mode === "radar_active");
     // Zone d'engagement : portée du radar en balayage large contre une cible de référence.
@@ -144,24 +151,14 @@ export class DetectionConsole implements ConsolePanel {
         this.followToggle.checked = !this.followToggle.checked;
         return;
       }
+      if (this.followToggle.checked) this.followTargetId = this.selection.current;
       this.syncFollowedTrack();
     });
     followGroup.append(follow.wrapper, el("p", "deck-note", "Recentre le radar sur la piste choisie à l'écran, secteur ajusté à son incertitude."));
     shell.deck.appendChild(followGroup);
 
-    const scaleGroup = deckGroup("Vue");
-    const zoomOut = hwKey("−");
-    const zoomIn = hwKey("+");
-    const recenter = hwKey("Recentrer");
-    zoomOut.addEventListener("click", () => this.scope.zoom(1.5));
-    zoomIn.addEventListener("click", () => this.scope.zoom(1 / 1.5));
-    recenter.addEventListener("click", () => this.scope.resetView());
-    const zoomRow = el("div", "deck-row");
-    zoomRow.append(zoomOut, zoomIn, recenter);
-    scaleGroup.appendChild(zoomRow);
-    shell.deck.append(scaleGroup, el("div", "deck-vent"));
-
-    this.radarSectorRow.classList.add("is-disabled");
+    // Les champs du secteur n'ont de sens qu'en mode Secteur : masqués en balayage large.
+    this.radarSectorRow.classList.add("hidden");
     this.updateSensorAvailability();
   }
 
@@ -170,7 +167,7 @@ export class DetectionConsole implements ConsolePanel {
     this.radarSectorMode = sector;
     this.radarWideBtn.classList.toggle("is-active", !sector);
     this.radarSectorBtn.classList.toggle("is-active", sector);
-    this.radarSectorRow.classList.toggle("is-disabled", !sector);
+    this.radarSectorRow.classList.toggle("hidden", !sector);
     this.applyRadarSector();
   }
 
@@ -203,7 +200,8 @@ export class DetectionConsole implements ConsolePanel {
   }
 
   private selectTrack(localId: string): void {
-    this.selectedTrackId = localId;
+    this.selection.set(localId);
+    this.followTargetId = localId;
     this.syncFollowedTrack();
   }
 
@@ -214,7 +212,7 @@ export class DetectionConsole implements ConsolePanel {
     if (!radarState) return;
     // En pause, sélectionner une piste reste une inspection : la consigne de suivi ne change pas.
     if (commandsLocked(this.world)) return;
-    radarState.followedTrackId = this.followToggle.checked ? this.selectedTrackId : null;
+    radarState.followedTrackId = this.followToggle.checked ? this.followTargetId : null;
     if (!this.followToggle.checked) this.applyRadarSector();
   }
 
@@ -278,18 +276,19 @@ export class DetectionConsole implements ConsolePanel {
       }
     }
 
-    this.scope.setSelected(this.selectedTrackId);
+    const selectedTrackId = this.selection.current;
+    this.scope.setSelected(selectedTrackId);
     this.friendlyVisuals.update(body.knowledge.friendlies, this.scope.cameraDistance / 400);
     this.scope.render(body.position, [
       ...friendlyContacts(body.knowledge.friendlies, body.position),
       ...trackContacts(body.knowledge.tracks, body.position, this.scope.radius),
     ]);
 
-    this.trackListView.update(body.knowledge.tracks, this.selectedTrackId, this.world.simTimeSeconds);
+    this.trackListView.update(body.knowledge.tracks, selectedTrackId, this.world.simTimeSeconds);
 
-    const selected = this.selectedTrackId ? body.knowledge.getTrack(this.selectedTrackId) : undefined;
+    const selected = selectedTrackId ? body.knowledge.getTrack(selectedTrackId) : undefined;
     this.contactSheetSlot.replaceChildren(
-      selected ? renderContactSheet(selected, this.world.simTimeSeconds) : el("p", "screen-line screen-line-dim", "Sélectionnez une piste."),
+      selected ? renderContactSheet(selected, this.world.simTimeSeconds, body) : el("p", "screen-line screen-line-dim", "Sélectionnez une piste."),
     );
 
     const tracks = body.knowledge.tracks;

@@ -5,6 +5,7 @@ import { stepCrewExposure } from "./crewExposure";
 import { Decoy, type DecoySaveState } from "./decoy";
 import { launchDecoy, stepDecoys } from "./decoySystem";
 import { stepDetection } from "./detection";
+import { SENSOR_MODE_LABELS } from "./sensors";
 import { DiagnosticLog } from "./diagnosticLog";
 import { FIXED_DT_SECONDS, integrateBody } from "./integrator";
 import { InputLog, type InputLogSaveState } from "./inputLog";
@@ -296,7 +297,7 @@ export class SimulationWorld {
     for (const track of player.knowledge.tracks) {
       if (!this.knownPlayerTrackIds.has(track.localId)) {
         this.knownPlayerTrackIds.add(track.localId);
-        this.addEvent("detection", `Nouvelle piste ${track.localId} détectée (${track.lastObservation.mode}).`);
+        this.addEvent("detection", `Nouvelle piste ${track.localId} détectée (${SENSOR_MODE_LABELS[track.lastObservation.mode]}).`);
         // TIM-03 : nouvelle détection connue de l'équipage ⇒ retour automatique à ×1.
         this.speedMultiplier = 1;
       }

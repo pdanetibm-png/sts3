@@ -2341,16 +2341,6 @@ button {
   flex-grow: 1.6;
 }
 
-.deck-vent {
-  flex: 1;
-  min-width: 60px;
-  border-radius: 8px;
-  background:
-    repeating-linear-gradient(180deg, #0a0d10 0 5px, #232a33 5px 7px, #161b21 7px 12px);
-  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.8);
-  opacity: 0.8;
-}
-
 .station .viewport-label {
   font-family: var(--font-mono);
   color: #6fcbe0;
@@ -2387,6 +2377,26 @@ button {
   font-size: 11px;
   color: #6aa7b8;
   text-shadow: none;
+}
+
+.screen-line.is-alert {
+  color: var(--danger);
+  text-shadow: 0 0 6px rgba(255, 92, 92, 0.45);
+}
+
+/* Support vie (Ingénierie) : le cadran n'apparaît que pendant une coupure. */
+.life-dial-host {
+  display: flex;
+  justify-content: center;
+}
+
+.life-dial-host .life-dial {
+  height: 150px;
+}
+
+/* Ingénierie n'a pas de pupitre : l'écran principal prend toute la hauteur. */
+.engineering-station {
+  grid-template-rows: auto minmax(0, 1fr);
 }
 
 .screen-section {
@@ -2493,6 +2503,11 @@ button {
   border: 1px solid #0a0d10;
   border-radius: 8px;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), inset 0 0 12px rgba(0, 0, 0, 0.35);
+}
+
+/* Sans grille décorative, les groupes se partagent toute la largeur du pupitre. */
+.station-deck > .deck-group {
+  flex: 1 1 auto;
 }
 
 .deck-group-title {
@@ -3134,13 +3149,7 @@ button {
   fill: #ff9a9a;
 }
 
-/* Cadran Vie */
-.screen-dial .screen-glass {
-  align-items: center;
-  justify-content: center;
-  padding: 36px 16px 16px;
-}
-
+/* Cadran du support vie (Ingénierie) */
 .life-dial {
   width: auto;
   height: 100%;
@@ -3321,6 +3330,17 @@ button {
   inset: 0;
   pointer-events: none;
   z-index: 1;
+}
+
+.scope-hint {
+  position: absolute;
+  top: 8px;
+  left: 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: #6aa7b8;
+  opacity: 0.75;
+  white-space: nowrap;
 }
 
 .scope-bearing {

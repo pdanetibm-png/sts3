@@ -1,4 +1,4 @@
-export type ConsoleId = "coupe" | "pilotage" | "detection" | "tactique" | "ingenierie" | "vie" | "carte-maitre";
+export type ConsoleId = "coupe" | "pilotage" | "detection" | "tactique" | "ingenierie" | "carte-maitre";
 
 export interface AppState {
   activeConsole: ConsoleId;

@@ -25,10 +25,10 @@ const MAX_BACKGROUND_DELTA_SECONDS = 1;
 const STALL_THRESHOLD_SECONDS = 2;
 // Au-delà, requestAnimationFrame ne tourne plus (page masquée ou couverte) : la relève prend la main.
 const MISSING_FRAMES_SECONDS = 0.2;
-// Reflète honnêtement l'état actuel du build : pas encore de séparation "partie réaliste /
-// test" au lancement (section 11) — la carte maître reste toujours accessible, donc toute
-// sauvegarde de cette version est marquée test.
-const TEST_MODE = true;
+// Partie réaliste ou mode test (section 11) : le mode test s'obtient en ouvrant le jeu avec `?test`
+// dans l'adresse. Lui seul donne la carte maître, l'analyse du débrief (vérité des deux camps) et
+// le téléchargement du déroulement ; toute sauvegarde faite en mode test est marquée comme telle.
+const TEST_MODE = new URLSearchParams(window.location.search).has("test");
 
 const localSaveStore = new LocalSaveStore(window.localStorage);
 
@@ -165,7 +165,7 @@ function startMission(appRoot: HTMLElement, scenario: ScenarioDefinition, restor
   const recorder = new ReplayRecorder(world, playerBodyId, TEST_MODE);
 
   appRoot.replaceChildren();
-  const ui = new Ui(appRoot, world, playerBodyId, saveController, recorder);
+  const ui = new Ui(appRoot, world, playerBodyId, saveController, recorder, TEST_MODE);
   let debriefShown = false;
   let lastTickSeconds = performance.now() / 1000;
   // Vrai si la page a été masquée depuis la dernière avance : l'écart n'est alors pas un décrochage.

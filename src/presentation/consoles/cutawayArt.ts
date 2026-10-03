@@ -12,7 +12,8 @@ import type { ConsoleId } from "../appState";
  */
 
 export type PostId = Exclude<ConsoleId, "coupe" | "carte-maitre">;
-export type SecondaryId = "sas" | "quartiers" | "carre" | "infirmerie" | "missiles" | "leurres" | "propergol" | "moteur";
+// Le support vie est un compartiment, plus un poste : il se pilote depuis Ingénierie.
+export type SecondaryId = "sas" | "quartiers" | "carre" | "infirmerie" | "missiles" | "leurres" | "vie" | "propergol" | "moteur";
 export type RoomId = PostId | SecondaryId;
 export type EngineKind = "thermique" | "fusion";
 type Pt = [number, number];
@@ -114,7 +115,7 @@ const ROOMS: RoomDef[] = [
   { id: "moteur", deck: "plein", m0: 35.85, m1: INTERIOR_END_M },
 ];
 
-const POST_NUMBERS: Record<PostId, string> = { pilotage: "01", detection: "02", tactique: "03", ingenierie: "04", vie: "05" };
+const POST_NUMBERS: Record<PostId, string> = { pilotage: "01", detection: "02", tactique: "03", ingenierie: "04" };
 const POST_IDS = new Set<RoomId>(Object.keys(POST_NUMBERS) as PostId[]);
 export const isPost = (id: RoomId): id is PostId => POST_IDS.has(id);
 
@@ -145,7 +146,7 @@ function tagDefs(spec: CutawaySpec): TagDef[] {
     { room: "quartiers", title: "Quartiers d'équipage", x: 290, y: BOTTOM_Y, w: 215, attachX: 485, anchor: [485, 606] },
     { room: "carre", title: "Carré & infirmerie", x: 540, y: BOTTOM_Y, w: 215, attachX: 678, anchor: [678, 626] },
     { room: "leurres", title: "Soute à leurres", x: 790, y: BOTTOM_Y, w: 215, attachX: 820, anchor: [820, 640] },
-    { room: "vie", title: "Vie", x: 1040, y: BOTTOM_Y, w: 215, attachX: 1060, anchor: [1060, 626] },
+    { room: "vie", title: "Support vie", x: 1040, y: BOTTOM_Y, w: 215, attachX: 1060, anchor: [1060, 626] },
     { room: "propergol", title: "Réservoir de propergol", x: 1290, y: BOTTOM_Y, w: 215, attachX: 1310, anchor: [1180, 600] },
   ];
 }
@@ -1312,7 +1313,7 @@ export function buildCutawaySvg(spec: CutawaySpec): string {
     <text class="ft-line ft-line-fleet lv-foot" y="78"></text>
   </g>
   <g class="hint" transform="translate(1760,906)">
-    <text text-anchor="end">Cliquez un poste pour y entrer · touches 1–5 · Échap pour revenir</text>
+    <text text-anchor="end">Cliquez un poste pour y entrer · touches 1–4 · Échap pour revenir</text>
     <text y="22" text-anchor="end">◀ PROUE   POUPE ▶ · sous poussée, l'équipage est plaqué dans son siège vers la poupe</text>
   </g>
 </svg>`;

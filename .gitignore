@@ -6,3 +6,6 @@ dist/
 
 # Réglages locaux de Claude Code (permissions propres à cette machine)
 .claude/settings.local.json
+
+# Déroulements de parties exportés (fichiers volumineux, propres à chaque joueur)
+logs/

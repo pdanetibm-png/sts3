@@ -68,8 +68,12 @@ export class HelpOverlay {
       ),
     );
     panel.appendChild(
-      helpItem("Changement de poste", "Vos ordres (poussée, capteurs, mode de pilotage) persistent — changer de console ne les interrompt jamais."),
+      helpItem(
+        "Changement de poste",
+        "Touches 1 à 4 ou onglets ; Échap revient à la vue vaisseau. La piste choisie est la même dans tous les postes. Vos ordres (poussée, capteurs, mode de pilotage) persistent — changer de console ne les interrompt jamais.",
+      ),
     );
+    panel.appendChild(helpItem("Vues 3D", "Glisser pour tourner, molette pour zoomer, double-clic pour recentrer, clic sur un contact pour le sélectionner."));
     panel.appendChild(
       el(
         "p",

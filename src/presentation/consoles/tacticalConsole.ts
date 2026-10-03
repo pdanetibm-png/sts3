@@ -16,6 +16,7 @@ import { renderContactSheet, TrackListView } from "./contactSheet";
 import { deckField, deckGroup, hwKey, hwToggle, lamp, lcdInput, screen, setLamp, stationShell } from "../station/stationKit";
 import type { ConsolePanel } from "./consoleTypes";
 import { commandsLocked, refuseIfLocked } from "../commandGuard";
+import type { TrackSelection } from "../trackSelection";
 
 const MISSILE_STATE_LABELS: Record<Missile["state"], string> = {
   poussee: "propulsé",
@@ -87,12 +88,14 @@ export class TacticalConsole implements ConsolePanel {
   private readonly contactSheetSlot: HTMLElement;
   private readonly qualityReadout: HTMLElement;
   private readonly hypotheticalDistanceInput: HTMLInputElement;
+  private readonly engagementGroup: HTMLElement;
   private readonly launchButton: HTMLButtonElement;
   private readonly launchFeedback: HTMLElement;
-  private readonly stockReadout: HTMLElement;
+  private readonly magazineTitle: HTMLElement;
   private readonly missileListEl: HTMLElement;
   private readonly missileRows = new Map<string, MissileRowEntry>();
   private readonly missileListEmptyMessage: HTMLElement;
+  private readonly missileScreenFrame: HTMLElement;
 
   private readonly armedLamp: HTMLElement;
   private readonly inFlightLamp: HTMLElement;
@@ -102,7 +105,7 @@ export class TacticalConsole implements ConsolePanel {
 
   private readonly decoyVisuals = new Map<string, ShipVisual>();
   private readonly decoyTubes: HTMLElement;
-  private readonly decoyStockReadout: HTMLElement;
+  private readonly decoyTitle: HTMLElement;
   private readonly decoyButton: HTMLButtonElement;
   private readonly decoyFeedback: HTMLElement;
   private readonly cutThrottleToggle: HTMLInputElement;
@@ -116,19 +119,21 @@ export class TacticalConsole implements ConsolePanel {
   private readonly pdcFeedback: HTMLElement;
   private readonly pdcLamp: HTMLElement;
 
-  private selectedTrackId: string | null = null;
+  /** Piste commune à tous les postes : la cible désignée ici est aussi celle des autres postes. */
+  private readonly selection: TrackSelection;
   /** Tir hors portée efficace demandé une première fois : un second appui dans le délai confirme. */
   private pendingOutOfRangeLaunch: { trackId: string; untilMs: number } | null = null;
   /** Largage sans poussée demandé une première fois (le leurre dériverait avec nous) : un second appui confirme. */
   private pendingDriftingDecoyUntilMs: number | null = null;
 
-  constructor(world: SimulationWorld, playerBodyId: string, onBack: () => void) {
+  constructor(world: SimulationWorld, playerBodyId: string, selection: TrackSelection) {
     this.world = world;
     const body = world.getBody(playerBodyId);
     if (!body) throw new Error(`Corps introuvable : ${playerBodyId}`);
     this.body = body;
+    this.selection = selection;
 
-    const shell = stationShell("03", "Tactique", "Armement · engagement · liaison missiles", onBack, "tactical-station");
+    const shell = stationShell("03", "Tactique", "Armement · engagement · liaison missiles", "tactical-station");
     this.element = shell.root;
     this.armedLamp = lamp("Armé", "danger");
     this.inFlightLamp = lamp("Missile en vol", "info");
@@ -155,6 +160,8 @@ export class TacticalConsole implements ConsolePanel {
     targetScreen.glass.append(this.trackListView.element, this.qualityReadout, this.contactSheetSlot);
     // Missiles puis leurres dans la même liste : un troisième écran écraserait la colonne à 1280 × 720.
     const missileScreen = screen("Missiles et leurres lancés");
+    // Replié tant que rien n'a été lancé : la place revient à la cible.
+    this.missileScreenFrame = missileScreen.frame;
     this.missileListEl = el("div", "track-list");
     this.missileListEmptyMessage = el("p", "screen-line screen-line-dim", "Aucun missile lancé.");
     this.decoyListEl = this.missileListEl;
@@ -162,23 +169,23 @@ export class TacticalConsole implements ConsolePanel {
     missileScreen.glass.appendChild(this.missileListEl);
     shell.side.append(targetScreen.frame, missileScreen.frame);
 
+    // Les tubes disent l'état du magasin ; le compte figure dans l'intitulé du groupe.
     const magazineGroup = deckGroup("Magasin");
+    this.magazineTitle = magazineGroup.firstElementChild as HTMLElement;
     this.magazineTubes = el("div", "magazine-rack");
     for (let i = 0; i < Math.max(body.missileCount, 1); i++) this.magazineTubes.appendChild(el("span", "magazine-tube"));
-    this.stockReadout = el("div", "lcd", "0");
-    const magazineRow = el("div", "deck-row");
-    magazineRow.append(this.magazineTubes, deckField("En réserve", this.stockReadout));
-    magazineGroup.appendChild(magazineRow);
+    magazineGroup.appendChild(this.magazineTubes);
     shell.deck.appendChild(magazineGroup);
 
-    const engagementGroup = deckGroup("Solution de tir");
-    this.hypotheticalDistanceInput = lcdInput("5000");
-    this.hypotheticalDistanceInput.min = "100";
-    engagementGroup.append(
-      deckField("Distance hypothétique (m)", this.hypotheticalDistanceInput),
-      el("p", "deck-note", "Utilisée seulement si la piste n'a pas de position connue — jamais une mesure inventée."),
+    // Seulement pour une piste au gisement seul : le missile vise ce point le long du gisement.
+    this.engagementGroup = deckGroup("Solution de tir");
+    this.hypotheticalDistanceInput = lcdInput(String(Math.round(this.effectiveReachMeters() / 10000) * 10));
+    this.hypotheticalDistanceInput.min = "1";
+    this.engagementGroup.append(
+      deckField("Distance supposée (km)", this.hypotheticalDistanceInput),
+      el("p", "deck-note", "Piste au gisement seul : le missile vise ce point le long du gisement — jamais une mesure inventée."),
     );
-    shell.deck.appendChild(engagementGroup);
+    shell.deck.appendChild(this.engagementGroup);
 
     const fireGroup = deckGroup("Tir", "deck-group-fire");
     const arm = hwToggle("Armement");
@@ -194,11 +201,9 @@ export class TacticalConsole implements ConsolePanel {
 
     // Leurres (CONCEPTION_LEURRES.md §9) : un seul bouton ; le leurre reprend le vecteur de poussée actuel.
     const decoyGroup = deckGroup("Leurres");
+    this.decoyTitle = decoyGroup.firstElementChild as HTMLElement;
     this.decoyTubes = el("div", "magazine-rack magazine-rack-decoy");
     for (let i = 0; i < Math.max(body.decoyCount, 1); i++) this.decoyTubes.appendChild(el("span", "magazine-tube"));
-    this.decoyStockReadout = el("div", "lcd", "0");
-    const decoyStockRow = el("div", "deck-row");
-    decoyStockRow.append(this.decoyTubes, deckField("En réserve", this.decoyStockReadout));
     const cutThrottle = hwToggle("Couper la poussée au largage");
     this.cutThrottleToggle = cutThrottle.input;
     this.cutThrottleToggle.checked = true;
@@ -208,7 +213,7 @@ export class TacticalConsole implements ConsolePanel {
     const decoyRow = el("div", "deck-row");
     decoyRow.append(cutThrottle.wrapper, this.decoyButton);
     decoyGroup.append(
-      decoyStockRow,
+      this.decoyTubes,
       decoyRow,
       el("p", "deck-note", "Le leurre reprend votre vecteur de poussée ; il n'imite rien si vous ne poussez pas."),
       this.decoyFeedback,
@@ -241,23 +246,10 @@ export class TacticalConsole implements ConsolePanel {
     this.pdcFeedback = el("div", "deck-readout deck-readout-wrap hidden");
     pdcGroup.append(el("p", "deck-note", "Auto : missiles probables qui approchent. Manuel : la piste sélectionnée."), this.pdcFeedback);
     shell.deck.appendChild(pdcGroup);
-
-    const scaleGroup = deckGroup("Vue");
-    const zoomOut = hwKey("−");
-    const zoomIn = hwKey("+");
-    const recenter = hwKey("Recentrer");
-    zoomOut.addEventListener("click", () => this.scope.zoom(1.5));
-    zoomIn.addEventListener("click", () => this.scope.zoom(1 / 1.5));
-    recenter.addEventListener("click", () => this.scope.resetView());
-    // Sur deux lignes, sans grille d'aération : la place va aux leurres et aux PDC (1280 × 720).
-    const zoomRow = el("div", "deck-row");
-    zoomRow.append(zoomOut, zoomIn);
-    scaleGroup.append(zoomRow, recenter);
-    shell.deck.append(scaleGroup);
   }
 
   private selectTrack(localId: string): void {
-    this.selectedTrackId = localId;
+    this.selection.set(localId);
   }
 
   private launch(): void {
@@ -271,11 +263,12 @@ export class TacticalConsole implements ConsolePanel {
       this.showFeedback("Aucun missile en réserve.");
       return;
     }
-    if (!this.selectedTrackId) {
+    const selectedTrackId = this.selection.current;
+    if (!selectedTrackId) {
       this.showFeedback("Sélectionnez une piste avant de lancer.");
       return;
     }
-    const track = body.knowledge.getTrack(this.selectedTrackId);
+    const track = body.knowledge.getTrack(selectedTrackId);
     if (track?.classification === "missile probable") {
       this.showFeedback("Piste classée « missile probable » : un missile ne peut atteindre qu'un vaisseau. Tir refusé.");
       return;
@@ -284,9 +277,9 @@ export class TacticalConsole implements ConsolePanel {
     const distance = track?.positionEstimateWorld?.distanceTo(body.position);
     if (distance !== undefined && distance > reach) {
       const now = performance.now();
-      const confirmed = this.pendingOutOfRangeLaunch?.trackId === this.selectedTrackId && now < this.pendingOutOfRangeLaunch.untilMs;
+      const confirmed = this.pendingOutOfRangeLaunch?.trackId === selectedTrackId && now < this.pendingOutOfRangeLaunch.untilMs;
       if (!confirmed) {
-        this.pendingOutOfRangeLaunch = { trackId: this.selectedTrackId, untilMs: now + 5000 };
+        this.pendingOutOfRangeLaunch = { trackId: selectedTrackId, untilMs: now + 5000 };
         this.showFeedback(
           `Hors portée efficace : ${(distance / 1000).toFixed(0)} km pour ${(reach / 1000).toFixed(0)} km. Le missile volerait longtemps sans pouvoir corriger. Appuyez de nouveau sur Lancer pour confirmer.`,
         );
@@ -294,8 +287,8 @@ export class TacticalConsole implements ConsolePanel {
       }
     }
     this.pendingOutOfRangeLaunch = null;
-    const hypotheticalDistance = Math.max(100, Number(this.hypotheticalDistanceInput.value) || 5000);
-    const missile = this.world.launchPlayerMissile(this.selectedTrackId, hypotheticalDistance);
+    const hypotheticalDistance = Math.max(1, Number(this.hypotheticalDistanceInput.value) || this.effectiveReachMeters() / 1000) * 1000;
+    const missile = this.world.launchPlayerMissile(selectedTrackId, hypotheticalDistance);
     if (!missile) {
       this.showFeedback("Lancement indisponible (piste introuvable).");
       return;
@@ -357,15 +350,16 @@ export class TacticalConsole implements ConsolePanel {
       this.showPdcFeedback("Simulation suspendue : aucun ordre accepté.");
       return;
     }
+    const selectedTrackId = this.selection.current;
     if (mode === "manuel") {
-      if (!this.selectedTrackId) {
+      if (!selectedTrackId) {
         this.showPdcFeedback("Sélectionnez la piste à prendre à partie.");
         return;
       }
-      command.manualTrackId = this.selectedTrackId;
+      command.manualTrackId = selectedTrackId;
     }
     command.mode = mode;
-    this.showPdcFeedback(mode === "manuel" ? `Manuel : tourelles sur ${this.selectedTrackId}.` : `Mode ${PDC_MODE_LABELS[mode]}.`, false);
+    this.showPdcFeedback(mode === "manuel" ? `Manuel : tourelles sur ${selectedTrackId}.` : `Mode ${PDC_MODE_LABELS[mode]}.`, false);
   }
 
   private showPdcFeedback(message: string, isWarning = true): void {
@@ -553,17 +547,19 @@ export class TacticalConsole implements ConsolePanel {
         selectable: false,
       });
     }
-    this.scope.setSelected(this.selectedTrackId);
+    const selectedTrackId = this.selection.current;
+    this.scope.setSelected(selectedTrackId);
     this.scope.render(body.position, contacts);
 
-    this.trackListView.update(body.knowledge.tracks, this.selectedTrackId, this.world.simTimeSeconds);
+    this.trackListView.update(body.knowledge.tracks, selectedTrackId, this.world.simTimeSeconds);
 
-    const selected = this.selectedTrackId ? body.knowledge.getTrack(this.selectedTrackId) : undefined;
+    const selected = selectedTrackId ? body.knowledge.getTrack(selectedTrackId) : undefined;
     this.contactSheetSlot.replaceChildren(
-      selected ? renderContactSheet(selected, this.world.simTimeSeconds) : el("p", "screen-line screen-line-dim", "Sélectionnez une piste."),
+      selected ? renderContactSheet(selected, this.world.simTimeSeconds, body, { compact: true }) : el("p", "screen-line screen-line-dim", "Sélectionnez une piste."),
     );
+    this.engagementGroup.classList.toggle("hidden", !selected || !!selected.positionEstimateWorld);
 
-    this.stockReadout.textContent = String(body.missileCount);
+    this.magazineTitle.textContent = `Magasin · ${body.missileCount}/${this.magazineTubes.children.length}`;
     [...this.magazineTubes.children].forEach((tube, i) => tube.classList.toggle("is-loaded", i < body.missileCount));
     const reachKm = this.effectiveReachMeters() / 1000;
     const selectedDistance = selected?.positionEstimateWorld?.distanceTo(body.position);
@@ -577,13 +573,14 @@ export class TacticalConsole implements ConsolePanel {
     setLamp(this.inFlightLamp, this.world.missiles.some((m) => m.ownerId === body.id && (m.state === "poussee" || m.state === "derive")));
     setLamp(this.emptyLamp, body.missileCount === 0);
 
-    this.decoyStockReadout.textContent = String(body.decoyCount);
+    this.decoyTitle.textContent = `Leurres · ${body.decoyCount}/${this.decoyTubes.children.length}`;
     [...this.decoyTubes.children].forEach((tube, i) => tube.classList.toggle("is-loaded", i < body.decoyCount));
     this.decoyButton.classList.toggle("is-armed", body.decoyCount > 0);
     setLamp(this.decoyLamp, ownDecoys.length > 0);
 
     this.updateMissileList(body);
     this.updateDecoyList(body);
+    this.missileScreenFrame.classList.toggle("hidden", this.missileRows.size === 0 && this.decoyRows.size === 0);
     this.updatePdc(body);
   }
 

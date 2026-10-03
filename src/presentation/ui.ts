@@ -7,25 +7,25 @@ import { CrossSectionConsole } from "./consoles/crossSection";
 import type { ConsolePanel } from "./consoles/consoleTypes";
 import { DetectionConsole } from "./consoles/detectionConsole";
 import { EngineeringConsole } from "./consoles/engineeringConsole";
-import { LifeSupportConsole } from "./consoles/lifeSupportConsole";
 import { MasterMapConsole } from "./consoles/masterMap";
 import { PilotConsole } from "./consoles/pilotConsole";
 import { TacticalConsole } from "./consoles/tacticalConsole";
 import { TimeBanner } from "./consoles/timeBanner";
+import { TRACK_STATE_LABELS } from "./consoles/contactSheet";
 import { el } from "./dom";
 import { downloadReplayExport } from "./diagnosticExport";
 import { HelpOverlay } from "./helpOverlay";
 import type { SaveController } from "./persistence/saveController";
+import { TrackSelection } from "./trackSelection";
 
 const POSTE_LABELS: Record<Exclude<ConsoleId, "coupe" | "carte-maitre">, string> = {
   pilotage: "Pilotage",
   detection: "Détection",
   tactique: "Tactique",
   ingenierie: "Ingénierie",
-  vie: "Vie",
 };
 
-const SHORTCUT_ORDER: ConsoleId[] = ["pilotage", "detection", "tactique", "ingenierie", "vie"];
+const SHORTCUT_ORDER: ConsoleId[] = ["pilotage", "detection", "tactique", "ingenierie"];
 
 export class Ui {
   readonly root: HTMLElement;
@@ -52,8 +52,17 @@ export class Ui {
   private invariantOverlayShown = false;
   private readonly saveController: SaveController;
   private readonly recorder: ReplayRecorder;
+  /** Piste sélectionnée, commune aux postes Pilotage, Détection et Tactique. */
+  private readonly selection = new TrackSelection();
 
-  constructor(container: HTMLElement, world: SimulationWorld, playerBodyId: string, saveController: SaveController, recorder: ReplayRecorder) {
+  constructor(
+    container: HTMLElement,
+    world: SimulationWorld,
+    playerBodyId: string,
+    saveController: SaveController,
+    recorder: ReplayRecorder,
+    testMode: boolean,
+  ) {
     this.world = world;
     this.recorder = recorder;
     this.playerBodyId = playerBodyId;
@@ -65,8 +74,7 @@ export class Ui {
     this.timeBanner = new TimeBanner(
       world,
       saveController,
-      () => this.appState.setActiveConsole("coupe"),
-      () => this.appState.setActiveConsole("carte-maitre"),
+      testMode ? () => this.appState.setActiveConsole("carte-maitre") : null,
       () => this.helpOverlay.toggle(),
     );
     this.root.appendChild(this.timeBanner.element);
@@ -77,8 +85,9 @@ export class Ui {
     this.suspendedBanner.append(el("span", undefined, "Simulation suspendue."), this.suspendedResumeButton);
     this.root.appendChild(this.suspendedBanner);
 
-    this.alertsRow = el("div", "alerts-row");
-    this.alertsText = el("span", "alerts-text", "Alertes connues : aucune.");
+    // Rangée masquée tant qu'il n'y a ni contact ni événement au journal.
+    this.alertsRow = el("div", "alerts-row hidden");
+    this.alertsText = el("span", "alerts-text");
     this.journalText = el("span", "journal-text");
     this.alertsRow.append(this.alertsText, this.journalText);
     this.root.appendChild(this.alertsRow);
@@ -176,7 +185,7 @@ export class Ui {
       return;
     }
     const digit = Number(event.key);
-    if (digit >= 1 && digit <= 5) {
+    if (digit >= 1 && digit <= SHORTCUT_ORDER.length) {
       this.appState.setActiveConsole(SHORTCUT_ORDER[digit - 1]);
     }
   }
@@ -191,27 +200,19 @@ export class Ui {
         panel = new CrossSectionConsole(this.world, this.playerBodyId, (target) => this.appState.setActiveConsole(target));
         break;
       case "pilotage":
-        panel = new PilotConsole(this.world, this.playerBodyId, () => this.appState.setActiveConsole("coupe"));
+        panel = new PilotConsole(this.world, this.playerBodyId, this.selection);
         break;
       case "carte-maitre":
         panel = new MasterMapConsole(this.world, this.recorder);
         break;
       case "ingenierie":
-        panel = new EngineeringConsole(this.world, this.playerBodyId, () => this.appState.setActiveConsole("coupe"));
+        panel = new EngineeringConsole(this.world, this.playerBodyId);
         break;
       case "detection":
-        panel = new DetectionConsole(this.world, this.playerBodyId, () => this.appState.setActiveConsole("coupe"));
+        panel = new DetectionConsole(this.world, this.playerBodyId, this.selection);
         break;
       case "tactique":
-        panel = new TacticalConsole(this.world, this.playerBodyId, () => this.appState.setActiveConsole("coupe"));
-        break;
-      case "vie":
-        panel = new LifeSupportConsole(
-          this.world,
-          this.playerBodyId,
-          () => this.appState.setActiveConsole("coupe"),
-          () => this.appState.setActiveConsole("ingenierie"),
-        );
+        panel = new TacticalConsole(this.world, this.playerBodyId, this.selection);
         break;
     }
     this.panels.set(id, panel);
@@ -254,13 +255,14 @@ export class Ui {
   /** Visible depuis n'importe quel poste (DET-10 : alerte passive reçue depuis un autre poste). */
   private updateAlertsRow(): void {
     const tracks = this.world.getBody(this.playerBodyId)?.knowledge.tracks ?? [];
+    this.alertsRow.classList.toggle("hidden", tracks.length === 0 && this.world.events.length === 0);
     if (tracks.length === 0) {
-      this.alertsText.textContent = "Alertes connues : aucune.";
+      this.alertsText.textContent = "";
       return;
     }
     const mostRecent = tracks.reduce((a, b) => (a.lastObservationSimTime >= b.lastObservationSimTime ? a : b));
     const age = Math.max(0, this.world.simTimeSeconds - mostRecent.lastObservationSimTime);
-    this.alertsText.textContent = `Alertes connues : contact ${mostRecent.localId} (${mostRecent.state}) — dernière mesure il y a ${age.toFixed(0)} s.`;
+    this.alertsText.textContent = `Contact ${mostRecent.localId} (${TRACK_STATE_LABELS[mostRecent.state].toLowerCase()}) — dernière mesure il y a ${age.toFixed(0)} s.`;
   }
 
   /**

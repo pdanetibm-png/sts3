@@ -8,7 +8,7 @@ import { REFERENCE_CROSS_SECTION_M2 } from "../../sim/signature";
 import { STANDARD_GRAVITY } from "../../sim/thrusters";
 import type { SimulationWorld } from "../../sim/world";
 import { TrackListView } from "./contactSheet";
-import { el } from "../dom";
+import { el, formatDistance, formatSpeed } from "../dom";
 import { ShipVisual } from "../render/shipMesh";
 import { FriendlyVisuals } from "../render/friendlyVisuals";
 import { friendlyContacts, SphereScope, trackContacts, type ScopeContact } from "../render/sphereScope";
@@ -17,6 +17,7 @@ import { TrajectoryOverlay } from "../render/trajectoryOverlay";
 import { deckGroup, hwKey, hwToggle, lamp, meterRow, screen, setLamp, stationShell } from "../station/stationKit";
 import type { ConsolePanel } from "./consoleTypes";
 import { refuseIfLocked } from "../commandGuard";
+import type { TrackSelection } from "../trackSelection";
 
 const CONTRE_VITESSE_MIN_SPEED = 0.5;
 /** Recalcul de la prédiction : toutes les N images (propagation de quelques centaines de points). */
@@ -55,7 +56,6 @@ export class PilotConsole implements ConsolePanel {
   private readonly exposureBar: HTMLElement;
   private readonly exposureEtaReadout: HTMLElement;
   private readonly incapacitatedWarning: HTMLElement;
-  private readonly orderReadout: HTMLElement;
   private readonly brakingReadout: HTMLElement;
   private readonly propellantReadout: HTMLElement;
   private readonly propellantBar: HTMLElement;
@@ -73,7 +73,9 @@ export class PilotConsole implements ConsolePanel {
   /** Dernière poussée écrite par ce poste : un écart signale un changement fait ailleurs. */
   private lastAppliedThrottle: number | null = null;
   private frameCounter = 0;
-  private selectedTrackId: string | null = null;
+  /** Piste commune à tous les postes ; `shownTrackId` repère un changement fait ailleurs. */
+  private readonly selection: TrackSelection;
+  private shownTrackId: string | null = null;
   private horizonSeconds = 600;
   private prediction: PredictedPoint[] = [];
   private cpa: ClosestApproach | null = null;
@@ -82,15 +84,16 @@ export class PilotConsole implements ConsolePanel {
   private readonly autoModeLamp: HTMLElement;
   private readonly propellantLamp: HTMLElement;
 
-  constructor(world: SimulationWorld, playerBodyId: string, onBack: () => void) {
+  constructor(world: SimulationWorld, playerBodyId: string, selection: TrackSelection) {
     this.world = world;
     const body = world.getBody(playerBodyId);
     if (!body) throw new Error(`Corps introuvable : ${playerBodyId}`);
     this.body = body;
     this.pendingThrottle = body.command.throttle;
-    this.selectedTrackId = body.command.navTrackId;
+    this.selection = selection;
+    if (!selection.current && body.command.navTrackId) selection.set(body.command.navTrackId);
 
-    const shell = stationShell("01", "Pilotage", "Navigation · propulsion · attitude", onBack, "pilot-station");
+    const shell = stationShell("01", "Pilotage", "Navigation · propulsion · attitude", "pilot-station");
     this.element = shell.root;
     this.overGLamp = lamp("Surcharge G", "danger");
     this.exposureLamp = lamp("Exposition", "warning");
@@ -133,7 +136,6 @@ export class PilotConsole implements ConsolePanel {
     exposureBarTrack.appendChild(this.exposureBar);
     this.exposureEtaReadout = el("div", "screen-line screen-line-dim");
     this.incapacitatedWarning = el("div", "warning-label hidden", "ÉQUIPAGE INCAPACITÉ — mission en échec.");
-    this.orderReadout = el("div", "screen-line");
     this.brakingReadout = el("div", "screen-line screen-line-dim");
     this.propellantReadout = el("div", "screen-line");
     const propellantBarTrack = el("div", "g-bar-track");
@@ -141,9 +143,11 @@ export class PilotConsole implements ConsolePanel {
     propellantBarTrack.appendChild(this.propellantBar);
     this.propellantAutonomyReadout = el("div", "screen-line screen-line-dim");
     this.deltaVReadout = el("div", "screen-line");
+    // La consigne (poussée, maintien, mode) se lit déjà sur le pupitre : l'écran garde l'état du vol.
     flight.glass.append(
       this.speedReadout,
       this.attitudeReadout,
+      this.brakingReadout,
       meterRow("Accél.", gBarTrack, this.gReadout),
       this.gWarning,
       meterRow("Expo. G", exposureBarTrack, this.exposureReadout),
@@ -152,9 +156,6 @@ export class PilotConsole implements ConsolePanel {
       meterRow("Propergol", propellantBarTrack, this.propellantReadout),
       this.propellantAutonomyReadout,
       this.deltaVReadout,
-      el("div", "screen-section", "Ordre actif"),
-      this.orderReadout,
-      this.brakingReadout,
     );
 
     // --- Écran : mode de pilotage et piste ---
@@ -248,7 +249,7 @@ export class PilotConsole implements ConsolePanel {
       this.body.command.attitudeHoldEngaged = this.attitudeHoldToggle.checked;
     });
 
-    const viewGroup = deckGroup("Vue · prédiction");
+    const viewGroup = deckGroup("Prédiction");
     const horizonRow = el("div", "deck-row");
     for (const horizon of HORIZONS) {
       const key = hwKey(horizon.label);
@@ -257,21 +258,12 @@ export class PilotConsole implements ConsolePanel {
       this.horizonKeys.set(horizon.seconds, key);
       horizonRow.appendChild(key);
     }
-    const zoomOut = hwKey("−");
-    const zoomIn = hwKey("+");
-    const recenter = hwKey("Recentrer");
-    zoomOut.addEventListener("click", () => this.scope.zoom(1.5));
-    zoomIn.addEventListener("click", () => this.scope.zoom(1 / 1.5));
-    recenter.addEventListener("click", () => this.scope.resetView());
-    const zoomRow = el("div", "deck-row");
-    zoomRow.append(zoomOut, zoomIn, recenter);
     viewGroup.append(
       el("span", "deck-label", "Horizon de prédiction"),
       horizonRow,
-      zoomRow,
       el("p", "deck-note", "Tourner ne change pas la trajectoire ; seule une poussée change la vitesse."),
     );
-    shell.deck.append(viewGroup, el("div", "deck-vent"));
+    shell.deck.append(viewGroup);
     this.setHorizon(this.horizonSeconds);
   }
 
@@ -381,7 +373,7 @@ export class PilotConsole implements ConsolePanel {
       this.showModeFeedback("Mode manuel.", false);
       return;
     }
-    const track = this.selectedTrackId ? this.body.knowledge.getTrack(this.selectedTrackId) : undefined;
+    const track = this.selection.current ? this.body.knowledge.getTrack(this.selection.current) : undefined;
     if (!track) {
       this.showModeFeedback(`Choisissez une piste (liste ou sphère) avant « ${NAV_MODE_LABELS[mode]} ».`);
       return;
@@ -398,9 +390,13 @@ export class PilotConsole implements ConsolePanel {
     this.modeFeedback.classList.toggle("deck-readout-alert", isWarning);
   }
 
-  /** Choisir une autre piste pendant un mode actif le reporte sur elle. */
+  /**
+   * Choisir une autre piste ICI pendant un mode actif le reporte sur elle. Une sélection faite dans
+   * un autre poste ne change que la piste affichée : jamais la consigne de pilotage.
+   */
   private selectTrack(localId: string): void {
-    this.selectedTrackId = localId;
+    this.selection.set(localId);
+    this.shownTrackId = localId;
     const mode = this.body.command.navMode;
     if (mode !== "manuel") this.engageMode(mode);
     this.frameCounter = 0;
@@ -480,7 +476,12 @@ export class PilotConsole implements ConsolePanel {
     // avec le propergol, donc un même % de poussée produit un G croissant dans le temps.
     this.applyThrottleGate();
 
-    const selectedTrack = this.selectedTrackId ? body.knowledge.getTrack(this.selectedTrackId) : undefined;
+    const selectedTrackId = this.selection.current;
+    if (selectedTrackId !== this.shownTrackId) {
+      this.shownTrackId = selectedTrackId;
+      this.frameCounter = 0;
+    }
+    const selectedTrack = selectedTrackId ? body.knowledge.getTrack(selectedTrackId) : undefined;
     if (this.frameCounter++ % PREDICTION_REFRESH_FRAMES === 0) this.refreshPrediction(selectedTrack);
 
     const scale = this.scope.cameraDistance;
@@ -518,7 +519,7 @@ export class PilotConsole implements ConsolePanel {
       }
     }
 
-    this.scope.setSelected(this.selectedTrackId);
+    this.scope.setSelected(selectedTrackId);
     this.scope.render(body.position, [
       ...this.trajectoryMarkers(),
       ...friendlyContacts(body.knowledge.friendlies, body.position),
@@ -553,17 +554,16 @@ export class PilotConsole implements ConsolePanel {
       this.incapacitatedWarning.classList.remove("hidden");
     } else {
       this.incapacitatedWarning.classList.add("hidden");
-      this.exposureEtaReadout.textContent =
-        body.crewExposureTrendPerSecond > 1e-6
-          ? `Incapacité dans ~${((1 - exposureFraction) / body.crewExposureTrendPerSecond).toFixed(0)} s si la consigne persiste${dominantAxis}`
-          : `Charge stable ou en baisse${dominantAxis}`;
+      const rising = body.crewExposureTrendPerSecond > 1e-6;
+      this.exposureEtaReadout.classList.toggle("hidden", !rising);
+      this.exposureEtaReadout.textContent = rising
+        ? `Incapacité dans ~${((1 - exposureFraction) / body.crewExposureTrendPerSecond).toFixed(0)} s si la consigne persiste${dominantAxis}`
+        : "";
     }
 
     this.attitudeHoldToggle.checked = body.command.attitudeHoldEngaged;
-    const holdText = body.command.attitudeHoldEngaged ? "maintien actif" : "maintien coupé";
-    this.orderReadout.textContent = `Poussée ${Math.round(body.command.throttle * 100)} % · ${holdText} · ${NAV_MODE_LABELS[body.command.navMode]}`;
 
-    this.trackListView.update(body.knowledge.tracks, this.selectedTrackId, this.world.simTimeSeconds);
+    this.trackListView.update(body.knowledge.tracks, selectedTrackId, this.world.simTimeSeconds);
     this.modeReadout.textContent = this.describeMode(selectedTrack);
     this.cpaReadout.textContent = this.describeClosestApproach(selectedTrack);
     for (const [mode, key] of this.modeKeys) key.classList.toggle("is-active", mode === body.command.navMode);
@@ -572,12 +572,13 @@ export class PilotConsole implements ConsolePanel {
 
     const fuelFlow = body.lastAllocation?.fuelFlowKgPerSecond ?? 0;
     const fraction = body.reservoir.quantityKg / body.reservoir.capacityKg;
-    const autonomy = fuelFlow > 1e-6 ? `${formatDuration(body.reservoir.quantityKg / fuelFlow)} à ce débit` : "indéterminée (pas de consommation)";
+    const autonomy = fuelFlow > 1e-6 ? `${formatDuration(body.reservoir.quantityKg / fuelFlow)} à ce débit` : "— (aucune consommation)";
     this.propellantReadout.textContent = `${(fraction * 100).toFixed(0)} %`;
     this.propellantAutonomyReadout.textContent = `${(body.reservoir.quantityKg / 1000).toFixed(1)} / ${(body.reservoir.capacityKg / 1000).toFixed(1)} t · autonomie ${autonomy}`;
     this.propellantBar.style.width = `${Math.max(0, Math.min(100, fraction * 100))}%`;
     this.propellantBar.classList.toggle("g-bar-over", fraction < 0.2);
-    this.deltaVReadout.textContent = `Δv restant : ${formatSpeed(remainingDeltaV(body))} (propergol entier au moteur principal)`;
+    this.deltaVReadout.textContent = `Δv restant : ${formatSpeed(remainingDeltaV(body))}`;
+    this.deltaVReadout.title = "Si tout le propergol restant passait par le moteur principal.";
 
     setLamp(this.overGLamp, accelG > this.body.crew.gThreshold);
     setLamp(this.exposureLamp, exposureFraction > 0.5 || body.crewExposureIncapacitated);
@@ -646,14 +647,6 @@ function formatDuration(seconds: number): string {
   }
   const hours = Math.floor(seconds / 3600);
   return `${hours} h ${String(Math.round((seconds - hours * 3600) / 60)).padStart(2, "0")}`;
-}
-
-function formatDistance(meters: number): string {
-  return meters < 10000 ? `${meters.toFixed(0)} m` : `${(meters / 1000).toFixed(meters < 100000 ? 1 : 0)} km`;
-}
-
-function formatSpeed(mps: number): string {
-  return mps < 10000 ? `${mps.toFixed(0)} m/s` : `${(mps / 1000).toFixed(1)} km/s`;
 }
 
 function axisLabel(axis: readonly [number, number, number]): string {

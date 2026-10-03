@@ -17,17 +17,15 @@ export interface StationShell {
   lamps: HTMLElement;
 }
 
-export function stationShell(number: string, title: string, subtitle: string, onBack: () => void, extraClass = ""): StationShell {
+/** Le retour à la vue vaisseau passe par son onglet ou Échap (ui.ts), pas par un bouton de poste. */
+export function stationShell(number: string, title: string, subtitle: string, extraClass = ""): StationShell {
   const root = el("div", `console station ${extraClass}`.trim());
 
   const header = el("div", "station-header");
   const plate = el("div", "station-plate");
   plate.append(el("span", "station-number", number), el("span", "station-title", title.toUpperCase()), el("span", "station-subtitle", subtitle));
   const lamps = el("div", "station-lamps");
-  const back = hwKey("◀ Coupe", "neutral");
-  back.title = "Retour à la vue vaisseau (Échap)";
-  back.addEventListener("click", onBack);
-  header.append(screw(), plate, lamps, back, screw());
+  header.append(screw(), plate, lamps, screw());
   root.appendChild(header);
 
   const main = el("div", "station-main");

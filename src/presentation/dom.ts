@@ -17,3 +17,12 @@ export function formatSeconds(totalSeconds: number): string {
   const pad = (n: number) => n.toString().padStart(2, "0");
   return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
 }
+
+/** Distance lisible à toutes les échelles du jeu : mètres de près, kilomètres au-delà de 10 km. */
+export function formatDistance(meters: number): string {
+  return meters < 10000 ? `${meters.toFixed(0)} m` : `${(meters / 1000).toFixed(meters < 100000 ? 1 : 0)} km`;
+}
+
+export function formatSpeed(mps: number): string {
+  return mps < 10000 ? `${mps.toFixed(0)} m/s` : `${(mps / 1000).toFixed(1)} km/s`;
+}

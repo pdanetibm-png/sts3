@@ -18,8 +18,8 @@ export class TimeBanner {
   constructor(
     world: SimulationWorld,
     saveController: SaveController,
-    onGoToCrossSection: () => void,
-    onGoToMasterMap: () => void,
+    /** `null` hors mode test : la carte maître (vérité des deux camps) n'est pas proposée. */
+    onGoToMasterMap: (() => void) | null,
     onToggleHelp: () => void,
   ) {
     this.world = world;
@@ -62,19 +62,31 @@ export class TimeBanner {
     helpButton.addEventListener("click", onToggleHelp);
     this.element.appendChild(helpButton);
 
-    const crossSectionButton = el("button", "btn", "Coupe");
-    crossSectionButton.title = "Retour à la vue vaisseau (Échap)";
-    crossSectionButton.addEventListener("click", onGoToCrossSection);
-    this.element.appendChild(crossSectionButton);
+    // La vue vaisseau a son onglet (et Échap) : pas de bouton « Coupe » en double ici.
+    if (onGoToMasterMap) {
+      const masterMapButton = el("button", "btn btn-test", "Carte maître (test)");
+      masterMapButton.title = "Mode test : vérité simulation complète, jamais disponible en partie normale.";
+      masterMapButton.addEventListener("click", onGoToMasterMap);
+      this.element.appendChild(masterMapButton);
+    }
 
-    const masterMapButton = el("button", "btn btn-test", "Mode test — carte maître");
-    masterMapButton.addEventListener("click", onGoToMasterMap);
-    this.element.appendChild(masterMapButton);
-
-    const abandonButton = el("button", "btn btn-danger", "Abandonner la mission");
+    // Irréversible : un premier appui arme, un second dans les 4 s confirme.
+    const abandonButton = el("button", "btn btn-danger", "Abandonner");
     abandonButton.title = "Fin distincte, sans prétendre à une neutralisation physique (section 9.4).";
+    let confirmTimer: number | null = null;
     abandonButton.addEventListener("click", () => {
-      if (this.world.missionOutcome === "en_cours") this.world.missionOutcome = "abandon";
+      if (this.world.missionOutcome !== "en_cours") return;
+      if (confirmTimer === null) {
+        abandonButton.textContent = "Confirmer l'abandon ?";
+        confirmTimer = window.setTimeout(() => {
+          abandonButton.textContent = "Abandonner";
+          confirmTimer = null;
+        }, 4000);
+        return;
+      }
+      window.clearTimeout(confirmTimer);
+      confirmTimer = null;
+      this.world.missionOutcome = "abandon";
     });
     this.element.appendChild(abandonButton);
 
