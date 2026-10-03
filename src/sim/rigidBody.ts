@@ -42,6 +42,8 @@ export interface CombatAIState {
   decoyPhase: DecoyTacticPhase;
   /** Temps restant de la phase en cours (en « vecteur » : durée de manœuvre restante avant largage). */
   decoyPhaseRemainingSeconds: number;
+  /** Discipline d'émission : temps depuis le début de la dernière impulsion radar (+∞ : jamais). */
+  timeSinceRadarBurstSeconds: number;
 }
 
 /** État sauvegardé d'un capteur — voir `SensorState` (mêmes champs, formes JSON-safe). */
@@ -89,6 +91,8 @@ export interface RigidBodySaveState {
     timeSinceLastDecoySeconds: number | null;
     decoyPhase: DecoyTacticPhase;
     decoyPhaseRemainingSeconds: number;
+    /** Optionnel (sauvegardes antérieures à la discipline d'émission) ; `null` = jamais. */
+    timeSinceRadarBurstSeconds?: number | null;
   };
   /** Optionnel (sauvegardes antérieures au combat à plusieurs vaisseaux). */
   neutralized?: boolean;
@@ -221,6 +225,7 @@ export class RigidBody {
     timeSinceLastDecoySeconds: Number.POSITIVE_INFINITY,
     decoyPhase: "aucune",
     decoyPhaseRemainingSeconds: 0,
+    timeSinceRadarBurstSeconds: Number.POSITIVE_INFINITY,
   };
 
   /** Masse totale à pleine réserve — sert de référence pour l'échelle d'inertie. */
@@ -405,6 +410,7 @@ export class RigidBody {
         timeSinceLastDecoySeconds: Number.isFinite(this.aiState.timeSinceLastDecoySeconds) ? this.aiState.timeSinceLastDecoySeconds : null,
         decoyPhase: this.aiState.decoyPhase,
         decoyPhaseRemainingSeconds: this.aiState.decoyPhaseRemainingSeconds,
+        timeSinceRadarBurstSeconds: Number.isFinite(this.aiState.timeSinceRadarBurstSeconds) ? this.aiState.timeSinceRadarBurstSeconds : null,
       },
     };
   }
@@ -461,6 +467,7 @@ export class RigidBody {
       this.aiState.timeSinceLastDecoySeconds = saved.aiState.timeSinceLastDecoySeconds ?? Number.POSITIVE_INFINITY;
       this.aiState.decoyPhase = saved.aiState.decoyPhase;
       this.aiState.decoyPhaseRemainingSeconds = saved.aiState.decoyPhaseRemainingSeconds;
+      this.aiState.timeSinceRadarBurstSeconds = saved.aiState.timeSinceRadarBurstSeconds ?? Number.POSITIVE_INFINITY;
     }
   }
 }

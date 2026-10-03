@@ -227,7 +227,7 @@ function validateDoctrine(doctrine: unknown, reasons: string[], tag: string): vo
   requireFields(d, ["approachThrottle", "brakeClosingSpeedMps", "wingmanMaxLeadMeters"], isNonNegative, reasons, `${tag}.doctrine`, "positif ou nul");
   // Tactique de leurre : champs optionnels, mais valides s'ils sont donnés.
   const presentDecoyFields = (fields: string[]) => fields.filter((f) => d?.[f] !== undefined);
-  requireFields(d, presentDecoyFields(["decoyThreatSeconds", "decoyDriftSeconds", "terminalDefenseSeconds"]), isPositive, reasons, `${tag}.doctrine`, "strictement positif");
+  requireFields(d, presentDecoyFields(["decoyThreatSeconds", "decoyDriftSeconds", "terminalDefenseSeconds", "radarBurstIntervalSeconds"]), isPositive, reasons, `${tag}.doctrine`, "strictement positif");
   requireFields(d, presentDecoyFields(["decoyVectorSeconds", "decoyCooldownSeconds"]), isNonNegative, reasons, `${tag}.doctrine`, "positif ou nul");
   if (d && !(typeof d.propellantReserveFraction === "number" && d.propellantReserveFraction >= 0 && d.propellantReserveFraction < 1)) {
     reasons.push(`${tag}.doctrine.propellantReserveFraction doit être dans [0, 1[`);

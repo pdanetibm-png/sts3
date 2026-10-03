@@ -2,6 +2,9 @@ import * as THREE from "three";
 import type { Track } from "../knowledge/types";
 import type { Decoy } from "./decoy";
 import { sectorHalfAngleFor } from "./detection";
+import { frameSeconds, radarRangeFor } from "./sensorPhysics";
+import { REFERENCE_CROSS_SECTION_M2 } from "./signature";
+import type { SensorDef } from "./types";
 import { estimateEngagementQuality, missileReachMeters } from "./missile";
 import type { Missile } from "./missile";
 import type { RigidBody } from "./rigidBody";
@@ -64,6 +67,7 @@ export function stepCombatAI(body: RigidBody, dt: number, context: CombatAIConte
   // ne doit pas empêcher indéfiniment le passage en radar actif).
   state.timeWithoutUsableTrackSeconds = hasKnownPosition ? 0 : state.timeWithoutUsableTrackSeconds + dt;
   state.timeSinceLastShotSeconds += dt;
+  state.timeSinceRadarBurstSeconds += dt;
 
   // La tactique de leurre, une fois engagée, prime sur l'approche : elle tient la poussée
   // (vecteur) ou la coupe (dérive, radar éteint).
@@ -87,16 +91,16 @@ export function stepCombatAI(body: RigidBody, dt: number, context: CombatAIConte
       } else if (hasUsableTrack) {
         // Radar concentré sur la piste : sa position si elle est connue, sinon le gisement IR
         // ou d'écoute qui l'a signalée (désignation par un capteur passif).
-        radarState.enabled = true;
         radarState.scanDirectionWorld = hasKnownPosition
           ? bestTrack!.positionEstimateWorld!.clone().sub(body.position).normalize()
           : bestTrack!.bearingEstimateWorld.clone();
         // Secteur de doctrine au minimum, élargi à l'incertitude latérale de la piste (A2) : sinon
         // un radar pointé sur une estimation dérivée balaie à côté de la cible sans jamais la revoir.
         radarState.scanHalfAngleRad = sectorHalfAngleFor(bestTrack!, body.position, doctrine.sectorHalfAngleRad);
+        radarState.enabled = radarWorthEmitting(body, radar, radarState.scanHalfAngleRad, hasKnownPosition ? bestTrack! : null, dt);
       } else if (state.timeWithoutUsableTrackSeconds >= doctrine.searchDelaySeconds) {
-        radarState.enabled = true;
         radarState.scanHalfAngleRad = Math.PI;
+        radarState.enabled = radarWorthEmitting(body, radar, Math.PI, null, dt);
       } else {
         radarState.enabled = false;
       }
@@ -113,6 +117,24 @@ export function stepCombatAI(body: RigidBody, dt: number, context: CombatAIConte
       if (missile) state.timeSinceLastShotSeconds = 0;
     }
   }
+}
+
+/**
+ * Discipline d'émission (doctrine `radarBurstIntervalSeconds`). Sans elle : toujours. Avec elle :
+ * piste à distance connue → seulement si elle est à portée (sinon émettre ne sert qu'à se
+ * trahir) ; distance inconnue → une impulsion d'un balayage, espacée de l'intervalle.
+ */
+function radarWorthEmitting(body: RigidBody, radar: SensorDef, halfAngleRad: number, positionedTrack: Track | null, dt: number): boolean {
+  const interval = body.doctrine.radarBurstIntervalSeconds;
+  if (interval === undefined) return true;
+  if (positionedTrack?.positionEstimateWorld) {
+    const nearest = positionedTrack.positionEstimateWorld.distanceTo(body.position) - (positionedTrack.positionUncertaintyMeters ?? 0);
+    return nearest <= radarRangeFor(radar, positionedTrack.crossSectionEstimateM2 ?? REFERENCE_CROSS_SECTION_M2, halfAngleRad);
+  }
+  const state = body.aiState;
+  if (state.timeSinceRadarBurstSeconds >= interval) state.timeSinceRadarBurstSeconds = 0;
+  // Un balayage complet (la mesure n'arrive qu'à sa fin), plus une marge d'un pas.
+  return state.timeSinceRadarBurstSeconds < frameSeconds(radar, halfAngleRad) + 2 * dt;
 }
 
 interface Threat {

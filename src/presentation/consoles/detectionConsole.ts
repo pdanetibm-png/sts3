@@ -15,6 +15,7 @@ import { deckField, deckGroup, hwKey, hwToggle, lamp, lcdInput, screen, setLamp,
 import type { ConsolePanel } from "./consoleTypes";
 import { commandsLocked, refuseIfLocked } from "../commandGuard";
 import { sensorUnpowered } from "../../sim/power";
+import { ownDetectability } from "../../sim/detectability";
 import type { TrackSelection } from "../trackSelection";
 
 const WIDE_SCAN_HALF_ANGLE_RAD = THREE.MathUtils.degToRad(80);
@@ -48,6 +49,8 @@ export class DetectionConsole implements ConsolePanel {
   private readonly radarWidthInput: HTMLInputElement;
   private readonly followToggle: HTMLInputElement;
   private readonly radarSectorRow: HTMLElement;
+  private readonly radarHeardReadout: HTMLElement;
+  private readonly infraredSeenReadout: HTMLElement;
 
   private readonly trackListView: TrackListView;
   private readonly contactSheetSlot: HTMLElement;
@@ -156,6 +159,17 @@ export class DetectionConsole implements ConsolePanel {
     });
     followGroup.append(follow.wrapper, el("p", "deck-note", "Recentre le radar sur la piste choisie à l'écran, secteur ajusté à son incertitude."));
     shell.deck.appendChild(followGroup);
+
+    // Ce que nos émissions et notre chaleur révèlent, vu par des capteurs comme les nôtres.
+    const stealthGroup = deckGroup("Discrétion");
+    this.radarHeardReadout = el("div", "deck-readout deck-readout-wrap");
+    this.infraredSeenReadout = el("div", "deck-readout deck-readout-wrap");
+    stealthGroup.append(
+      this.radarHeardReadout,
+      this.infraredSeenReadout,
+      el("p", "deck-note", "Référence : des capteurs identiques aux vôtres, en veille sur tout le ciel."),
+    );
+    shell.deck.appendChild(stealthGroup);
 
     // Les champs du secteur n'ont de sens qu'en mode Secteur : masqués en balayage large.
     this.radarSectorRow.classList.add("hidden");
@@ -291,6 +305,19 @@ export class DetectionConsole implements ConsolePanel {
       selected ? renderContactSheet(selected, this.world.simTimeSeconds, body) : el("p", "screen-line screen-line-dim", "Sélectionnez une piste."),
     );
 
+    const stealth = ownDetectability(body);
+    if (stealth.radarHeardInBeamMeters !== null && stealth.radarHeardOutOfBeamMeters !== null) {
+      const ranges = `${formatKm(stealth.radarHeardInBeamMeters)} dans son faisceau, ${formatKm(stealth.radarHeardOutOfBeamMeters)} hors faisceau`;
+      this.radarHeardReadout.textContent = stealth.radarEmitting ? `Radar : émet — entendu jusqu'à ${ranges}.` : `Radar éteint : rien à entendre (allumé : ${ranges}).`;
+      this.radarHeardReadout.classList.toggle("deck-readout-alert", stealth.radarEmitting);
+    } else {
+      this.radarHeardReadout.textContent = "Pas de radar actif à bord.";
+    }
+    this.infraredSeenReadout.textContent =
+      stealth.infraredFrontMeters !== null && stealth.infraredRearMeters !== null
+        ? `IR : vu jusqu'à ${formatKm(stealth.infraredFrontMeters)} de face, ${formatKm(stealth.infraredRearMeters)} de l'arrière.`
+        : "";
+
     const tracks = body.knowledge.tracks;
     setLamp(this.radarLamp, !!radarState?.enabled);
     setLamp(this.contactLamp, tracks.some((t) => t.state !== "lost"));
@@ -305,4 +332,9 @@ export class DetectionConsole implements ConsolePanel {
     this.scope.dispose();
     this.element.remove();
   }
+}
+
+/** Grandes distances lisibles : « 258 000 km ». */
+function formatKm(meters: number): string {
+  return `${Math.round(meters / 1000).toLocaleString("fr-FR")} km`;
 }

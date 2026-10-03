@@ -435,7 +435,8 @@
         "decoyVectorSeconds": 20,
         "decoyDriftSeconds": 180,
         "decoyCooldownSeconds": 120,
-        "terminalDefenseSeconds": 20
+        "terminalDefenseSeconds": 20,
+        "radarBurstIntervalSeconds": 60
       }
     ],
     "decoys": [

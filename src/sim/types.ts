@@ -169,6 +169,13 @@ export interface DoctrineDef {
    * dérive d'une tactique de leurre : sans piste fraîche, la PDC n'a rien à viser.
    */
   terminalDefenseSeconds?: number;
+  /**
+   * Discipline d'émission — optionnel : sans lui, le radar émet dès qu'une piste est à viser.
+   * Avec lui, le radar se tait quand il ne peut rien mesurer (piste connue hors de sa portée) et,
+   * sur une piste au gisement seul ou en recherche, n'émet que par brèves impulsions (un balayage)
+   * espacées de cet intervalle (s). Émettre en continu trahit le vaisseau à l'écoute adverse.
+   */
+  radarBurstIntervalSeconds?: number;
 }
 
 /**
