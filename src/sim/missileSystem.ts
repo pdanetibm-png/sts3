@@ -2,7 +2,7 @@ import { Vector3 } from "three";
 import { campOf, sameCamp } from "./camps";
 import { crossedSphereBoundaryOutward, sweptSegmentHitsMovingSphere } from "./collision";
 import { integrateLinear } from "./integrator";
-import { guidanceThrustDirection, Missile } from "./missile";
+import { guidanceThrustDirection, Missile, resolveGuidanceTarget, TERMINAL_IGNITION_FACTOR } from "./missile";
 import type { RigidBody } from "./rigidBody";
 import { STANDARD_GRAVITY } from "./thrusters";
 import type { SimulationWorld } from "./world";
@@ -55,18 +55,27 @@ export function stepMissiles(world: SimulationWorld, dt: number): void {
     const p0 = missile.position.clone();
 
     if (missile.state === "poussee") {
-      const direction = owner ? guidanceThrustDirection(missile, owner) : null;
+      updateThrustPhase(missile, owner);
+      const direction = owner && missile.phase !== "croisiere" ? guidanceThrustDirection(missile, owner) : null;
       const forceWorld = direction ? direction.multiplyScalar(missile.maxThrustNewtons) : new Vector3();
-      const fuelFlow = forceWorld.lengthSq() > 0 ? missile.maxThrustNewtons / (missile.specificImpulseSeconds * STANDARD_GRAVITY) : 0;
+      let fuelFlow = forceWorld.lengthSq() > 0 ? missile.maxThrustNewtons / (missile.specificImpulseSeconds * STANDARD_GRAVITY) : 0;
       const requestedKg = fuelFlow * dt;
+      // En accélération, on ne touche jamais à la réserve terminale.
+      const availableKg = missile.phase === "acceleration" ? Math.max(0, missile.reservoir.quantityKg - missile.reserveKg) : missile.reservoir.quantityKg;
       if (requestedKg > 0) {
-        if (requestedKg <= missile.reservoir.quantityKg) {
+        if (requestedKg <= availableKg) {
           missile.reservoir.quantityKg -= requestedKg;
         } else {
-          const scale = missile.reservoir.quantityKg / requestedKg;
+          const scale = availableKg / requestedKg;
           forceWorld.multiplyScalar(scale);
-          missile.reservoir.quantityKg = 0;
-          missile.state = "derive";
+          fuelFlow *= scale;
+          missile.reservoir.quantityKg -= availableKg;
+          if (missile.reservoir.quantityKg <= 1e-9) {
+            missile.reservoir.quantityKg = 0;
+            missile.state = "derive";
+          } else {
+            missile.phase = "croisiere";
+          }
         }
       }
       missile.lastFuelFlowKgPerSecond = fuelFlow;
@@ -109,6 +118,32 @@ export function stepMissiles(world: SimulationWorld, dt: number): void {
     }
     if (!hitShip) collideWithDecoys(world, missile, p0, dt);
   }
+}
+
+/**
+ * Programme de poussée (MissileDef.terminalReserveFraction) : la croisière commence quand il ne
+ * reste que la réserve ; la phase terminale quand le temps avant impact estimé (d'après la piste
+ * du porteur, jamais la vérité) tombe sous quelques durées de combustion de la réserve — ou dès
+ * que le missile ne se rapproche plus du point visé.
+ */
+function updateThrustPhase(missile: Missile, owner: RigidBody | undefined): void {
+  if (missile.reserveKg <= 0) return;
+  if (missile.phase === "acceleration" && missile.reservoir.quantityKg <= missile.reserveKg + 1e-9) missile.phase = "croisiere";
+  if (missile.phase !== "croisiere" || !owner) return;
+  const target = resolveGuidanceTarget(missile, owner);
+  if (!target) return;
+  const offset = target.clone().sub(missile.position);
+  const distance = offset.length();
+  if (distance < 1) {
+    missile.phase = "terminale";
+    return;
+  }
+  const track = missile.assignedTrackId ? owner.knowledge.getTrack(missile.assignedTrackId) : undefined;
+  const relativeVelocity = missile.velocity.clone().sub(track?.velocityEstimateWorld ?? new Vector3());
+  const closing = relativeVelocity.dot(offset.divideScalar(distance));
+  const massFlow = missile.maxThrustNewtons / (missile.specificImpulseSeconds * STANDARD_GRAVITY);
+  const burnSeconds = missile.reservoir.quantityKg / massFlow;
+  if (closing <= 0 || distance / closing <= TERMINAL_IGNITION_FACTOR * burnSeconds) missile.phase = "terminale";
 }
 
 /**

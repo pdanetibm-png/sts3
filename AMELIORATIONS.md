@@ -5,7 +5,21 @@ Liste tenue à jour des corrections et évolutions possibles du moteur, de la co
 - bilan de réalisme de la simulation (03/10) ;
 - analyse de la partie `scs-deroulement-20260923-t1090s` (03/10) : Kestrel et Hawk (intercepteurs) contre une corvette, victoire à 1090 s sur un seul impact, sans aucun tir ennemi.
 
-Statut : **proposition à valider.** L'ordre conseillé est celui des numéros : A1 conditionne A2 et A3.
+Statut : **en cours de mise en place** (branche `ameliorations-postes-et-capteurs`). L'ordre conseillé est celui des numéros : A1 conditionne A2 et A3.
+
+## État au 03/10
+
+| Point | État |
+|---|---|
+| A1, A2 (piste trop incertaine, secteur radar de l'IA) | **Fait** : incertitude latérale distincte, position sans valeur abandonnée, secteur à la mesure de l'incertitude latérale |
+| A6 (missiles à poussée gérée) | **Fait** : réserve terminale (30 % sur les missiles chimiques), croisière moteur coupé, rallumage à l'approche |
+| Triangulation avec un allié, distance par manœuvre, incertitude en « cigare » | **Fait** : `knowledge/passiveRanging.ts`, gisements partagés par la liaison de données |
+| Indicateur de discrétion (Détection), doctrine d'émission de l'IA | **Fait** : `sim/detectability.ts`, doctrine `radarBurstIntervalSeconds` |
+| Tests d'interface, CI GitHub, icône, découpage du paquet, liste des pistes en Pilotage | **Fait** |
+| Ordres à l'ailier, salves coordonnées | À faire |
+| Bilan de partie automatique, banc d'essai sans affichage | À faire |
+| Simulation dans un web worker | À faire (mesurer d'abord le coût d'un pas en 2 contre 2) |
+| A3, A4, A5, B1–B3, C1–C5 | À faire |
 
 ---
 

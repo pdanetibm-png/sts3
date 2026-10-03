@@ -238,6 +238,12 @@ export interface MissileDef {
   /** Surface physique présentée de face et de profil (m²) — cible des obus de PDC. Absente : intouchable. */
   presentedAreaFrontM2?: number;
   presentedAreaSideM2?: number;
+  /**
+   * Part du propergol gardée pour la phase terminale (0 à < 1, défaut 0 : poussée continue jusqu'à
+   * épuisement). Le missile accélère, coupe en croisière (sans jet, il se voit moins en IR), puis
+   * rallume à l'approche pour corriger une manœuvre de la cible.
+   */
+  terminalReserveFraction?: number;
 }
 
 /** Générateur de panache IR d'un leurre : charge qui complète son jet pour imiter celui du vaisseau. */

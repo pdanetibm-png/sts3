@@ -9,6 +9,15 @@ import type { Affiliation, MissileDef, ReservoirDef } from "./types";
 /** « abattu » : détruit par les obus d'une PDC ; « detruit » : a percuté sa cible. */
 export type MissileState = "poussee" | "derive" | "perdu_theatre" | "detruit" | "abattu";
 
+/**
+ * Programme de poussée d'un missile « poussee » qui garde une réserve (MissileDef.terminalReserveFraction) :
+ * accélération jusqu'à la réserve, croisière moteur coupé, puis phase terminale à l'approche.
+ */
+export type MissilePhase = "acceleration" | "croisiere" | "terminale";
+
+/** Rallumage quand le temps restant avant impact tombe sous ce multiple de la durée de combustion de la réserve. */
+export const TERMINAL_IGNITION_FACTOR = 3;
+
 export interface MissileLaunchParams {
   id: string;
   ownerId: string;
@@ -43,6 +52,8 @@ export interface MissileSaveState {
   reservoirQuantityKg: number;
   hullTemperatureK: number;
   axisWorld: Vec3Tuple;
+  /** Optionnel : absent des sauvegardes antérieures (accélération). */
+  phase?: MissilePhase;
 }
 
 /**
@@ -69,6 +80,9 @@ export class Missile {
   hullTemperatureK: number;
   /** Axe du corps : sens de la poussée pendant la propulsion, sinon celui de la vitesse. */
   readonly axisWorld: Vector3;
+  phase: MissilePhase = "acceleration";
+  /** Propergol gardé pour la phase terminale (kg), fixé au lancement. */
+  readonly reserveKg: number;
 
   constructor(params: MissileLaunchParams) {
     this.id = params.id;
@@ -78,6 +92,7 @@ export class Missile {
     this.velocity = params.velocity.clone();
     this.structureMassKg = params.def.structureMassKg;
     this.reservoir = { ...params.def.reservoir };
+    this.reserveKg = params.def.reservoir.quantityKg * (params.def.terminalReserveFraction ?? 0);
     this.maxThrustNewtons = params.def.maxThrustNewtons;
     this.specificImpulseSeconds = params.def.specificImpulseSeconds;
     this.def = params.def;
@@ -132,6 +147,7 @@ export class Missile {
       reservoirQuantityKg: this.reservoir.quantityKg,
       hullTemperatureK: this.hullTemperatureK,
       axisWorld: vecToTuple(this.axisWorld),
+      phase: this.phase,
     };
   }
 
@@ -155,6 +171,7 @@ export class Missile {
     missile.trail.push(...saved.trail.map(tupleToVec3));
     missile.lastFuelFlowKgPerSecond = saved.lastFuelFlowKgPerSecond;
     missile.reservoir.quantityKg = saved.reservoirQuantityKg;
+    missile.phase = saved.phase ?? "acceleration";
     return missile;
   }
 }
@@ -169,10 +186,15 @@ export function missileReachMeters(def: MissileDef, flightSeconds: number): numb
   const dt = flightSeconds / steps;
   const massFlow = def.maxThrustNewtons / (def.specificImpulseSeconds * STANDARD_GRAVITY);
   let propellant = def.reservoir.quantityKg;
+  // Programme avec réserve : accélération, croisière, puis la réserve brûlée en fin de vol.
+  const reserveKg = propellant * (def.terminalReserveFraction ?? 0);
+  const reserveBurnSeconds = massFlow > 0 ? reserveKg / massFlow : 0;
   let speed = 0;
   let distance = 0;
   for (let i = 0; i < steps; i++) {
-    const burn = Math.min(propellant, massFlow * dt);
+    const t = i * dt;
+    const available = propellant > reserveKg ? propellant - reserveKg : t >= flightSeconds - reserveBurnSeconds ? propellant : 0;
+    const burn = Math.min(available, massFlow * dt);
     const thrustFraction = massFlow * dt > 0 ? burn / (massFlow * dt) : 0;
     const acceleration = (def.maxThrustNewtons * thrustFraction) / (def.structureMassKg + propellant);
     propellant -= burn;

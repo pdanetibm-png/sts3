@@ -201,6 +201,9 @@ function validateMissile(missile: unknown, reasons: string[], tag: string): void
   validateReservoir(m?.reservoir, reasons, `${tag}.missile`);
   validateSignature(m?.signature, reasons, `${tag}.missile`);
   validatePresentedArea(m, reasons, `${tag}.missile`);
+  if (m?.terminalReserveFraction !== undefined && !(typeof m.terminalReserveFraction === "number" && m.terminalReserveFraction >= 0 && m.terminalReserveFraction < 1)) {
+    reasons.push(`${tag}.missile.terminalReserveFraction doit être dans [0, 1[`);
+  }
 }
 
 function validateDecoy(decoy: unknown, reasons: string[], tag: string): void {

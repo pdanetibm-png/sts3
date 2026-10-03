@@ -359,6 +359,7 @@
         },
         "presentedAreaFrontM2": 0.1,
         "presentedAreaSideM2": 1.2,
+        "terminalReserveFraction": 0.3,
         "price": 1500
       },
       {
@@ -387,6 +388,7 @@
         },
         "presentedAreaFrontM2": 0.13,
         "presentedAreaSideM2": 1.6,
+        "terminalReserveFraction": 0.3,
         "price": 3000
       },
       {
