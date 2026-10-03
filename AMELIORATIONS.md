@@ -15,7 +15,8 @@ Statut : **en cours de mise en place** (branche `ameliorations-postes-et-capteur
 | A6 (missiles à poussée gérée) | **Fait** : réserve terminale (30 % sur les missiles chimiques), croisière moteur coupé, rallumage à l'approche |
 | Triangulation avec un allié, distance par manœuvre, incertitude en « cigare » | **Fait** : `knowledge/passiveRanging.ts`, gisements partagés par la liaison de données |
 | Indicateur de discrétion (Détection), doctrine d'émission de l'IA | **Fait** : `sim/detectability.ts`, doctrine `radarBurstIntervalSeconds` |
-| Tests d'interface, CI GitHub, icône, découpage du paquet, liste des pistes en Pilotage | **Fait** |
+| Tests d'interface, icône, découpage du paquet, liste des pistes en Pilotage | **Fait** |
+| CI GitHub | **Prête, à activer** : `ci/github-actions-ci.yml` est à copier dans `.github/workflows/ci.yml` (un jeton sans la permission « workflow » ne peut pas l'envoyer ; l'interface web de GitHub le peut) |
 | D1–D4 (partie `t1714s` : pistes fragmentées, leurre qui vole une piste, ailier distancé, IA qui tire sur un missile) | **Fait** (voir section D) |
 | Ordres à l'ailier, salves coordonnées | À faire |
 | Bilan de partie automatique, banc d'essai sans affichage | À faire |
