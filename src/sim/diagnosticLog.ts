@@ -123,7 +123,7 @@ function buildSample(world: SimulationWorld): DiagnosticSample {
       lifeSupportRemainingAutonomySeconds: body.lifeSupportRemainingAutonomySeconds,
       lifeSupportFailed: body.lifeSupportFailed,
       neutralized: body.neutralized,
-      tracks: body.knowledge.tracks.map((track) => ({
+      tracks: body.knowledge.allTracks.map((track) => ({
         localId: track.localId,
         state: track.state,
         ageSeconds: world.simTimeSeconds - track.lastObservationSimTime,

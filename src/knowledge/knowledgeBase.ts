@@ -7,7 +7,9 @@ import {
   extrapolateTrack,
   fuseObservationIntoTrack,
   fuseRemoteBearing,
+  isConfirmedTrack,
   remoteBearingScore,
+  successionScore,
 } from "./fusion";
 import type { FriendlyContact, Observation, SharedBearing, Track } from "./types";
 
@@ -32,7 +34,13 @@ export class KnowledgeBase {
     this.friendlyContacts = contacts;
   }
 
+  /** Pistes confirmées : ce que voient les postes, l'IA et la conduite de tir. */
   get tracks(): Track[] {
+    return this.allTracks.filter(isConfirmedTrack);
+  }
+
+  /** Toutes les pistes, candidates comprises : fusion interne, sauvegarde, analyse. */
+  get allTracks(): Track[] {
     return Array.from(this.tracksById.values());
   }
 
@@ -60,7 +68,7 @@ export class KnowledgeBase {
    * restée sans piste en ouvre une. Renvoie la piste de chaque mesure, dans l'ordre reçu.
    */
   ingestScan(observations: readonly Observation[], observerPositionWorld: Vector3): Track[] {
-    const tracks = this.tracks;
+    const tracks = this.allTracks;
     const pairs: { index: number; track: Track; cost: number }[] = [];
     const candidateCounts = observations.map((observation, index) => {
       const candidates = associationCandidates(tracks, observation, observerPositionWorld, this.assumptions);
@@ -76,6 +84,25 @@ export class KnowledgeBase {
       assigned[pair.index] = pair.track;
       taken.add(pair.track);
     }
+    // Secours : un gisement sans piste rejoint une piste au gisement seul qui tourne vite, si sa
+    // rotation l'explique, plutôt que d'en ouvrir une nouvelle à chaque image.
+    observations.forEach((observation, index) => {
+      if (assigned[index]) return;
+      let best: Track | undefined;
+      let bestScore = 1;
+      for (const track of tracks) {
+        if (taken.has(track)) continue;
+        const score = successionScore(track, observation);
+        if (score <= bestScore) {
+          best = track;
+          bestScore = score;
+        }
+      }
+      if (best) {
+        assigned[index] = best;
+        taken.add(best);
+      }
+    });
 
     return observations.map((observation, index) => {
       const track = assigned[index];

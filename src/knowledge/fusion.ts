@@ -211,6 +211,70 @@ export function createTrackFromObservation(
   return track;
 }
 
+/**
+ * Piste confirmée (logique « M sur N » des pisteurs réels) : au moins deux mesures rattachées, ou
+ * une distance connue (radar, triangulation). Une détection isolée reste une piste candidate,
+ * invisible des postes et de l'IA : sans cela, chaque reflet d'un objet rapide vu en IR une fois
+ * toutes les 10 s s'affichait comme un nouveau contact.
+ */
+export function isConfirmedTrack(track: Track): boolean {
+  return track.history.length >= 2 || track.rangeFixes.length > 0 || track.positionEstimateWorld !== undefined || (track.remoteBearingFixes?.length ?? 0) > 0;
+}
+
+/**
+ * Rattachement de secours d'un gisement resté sans piste (≤ 1 : acceptable) : une piste au gisement
+ * seul dont la ligne de visée tourne vite (objet proche et rapide, missile) peut voir sa vitesse
+ * angulaire changer beaucoup d'une image à l'autre. On tolère alors un écart à la prédiction
+ * allant jusqu'à la rotation prévue elle-même, plutôt que d'ouvrir une nouvelle piste. Sans effet
+ * sur une piste lointaine, dont la rotation est faible.
+ */
+export function successionScore(track: Track, observation: Observation): number {
+  if (track.positionEstimateWorld || track.state === "lost" || !track.bearingRateWorld || track.history.length < 2) return Number.POSITIVE_INFINITY;
+  const sinceLast = observation.simTime - track.lastObservationSimTime;
+  if (!(sinceLast > 0)) return Number.POSITIVE_INFINITY;
+  const margin =
+    GATE_SIGMA * (track.bearingUncertaintyRad + observation.bearingUncertaintyRad) + BEARING_COMPATIBILITY_MARGIN_RAD + track.bearingRateWorld.length() * sinceLast;
+  return angularDistance(track.bearingEstimateWorld, observation.bearingWorld) / margin;
+}
+
+/** Écart angulaire en deçà duquel deux pistes de vaisseau sont « jumelles » (vues de l'observateur). */
+const TWIN_MAX_ANGLE_RAD = (2 * Math.PI) / 180;
+/** Écart de distance relatif toléré entre deux jumelles quand les deux distances sont connues. */
+const TWIN_MAX_RELATIVE_RANGE_GAP = 0.2;
+
+function directionFrom(track: Track, observerPositionWorld: Vector3): { direction: Vector3; range?: number } {
+  if (track.positionEstimateWorld) {
+    const offset = track.positionEstimateWorld.clone().sub(observerPositionWorld);
+    const range = offset.length();
+    if (range > 1) return { direction: offset.divideScalar(range), range };
+  }
+  return { direction: track.bearingEstimateWorld };
+}
+
+/**
+ * Piste « jumelle » : une autre piste non perdue, pas classée missile, dans la même direction et à
+ * une distance voisine. Un leurre largué, ou un missile tiré, sort du vaisseau et apparaît ainsi ;
+ * c'est le moment où une piste peut changer d'objet sans que rien d'autre ne le montre.
+ */
+export function findTwinTrack(tracks: readonly Track[], track: Track, observerPositionWorld: Vector3): Track | null {
+  if (track.classification === "missile probable") return null;
+  const self = directionFrom(track, observerPositionWorld);
+  let best: Track | null = null;
+  let bestAngle = TWIN_MAX_ANGLE_RAD;
+  for (const other of tracks) {
+    if (other === track || other.state === "lost" || other.classification === "missile probable") continue;
+    const candidate = directionFrom(other, observerPositionWorld);
+    const angle = angularDistance(self.direction, candidate.direction);
+    if (angle > bestAngle) continue;
+    if (self.range !== undefined && candidate.range !== undefined) {
+      if (Math.abs(self.range - candidate.range) > TWIN_MAX_RELATIVE_RANGE_GAP * Math.max(self.range, candidate.range)) continue;
+    }
+    best = other;
+    bestAngle = angle;
+  }
+  return best;
+}
+
 /** Incertitude latérale de la position estimée (perpendiculaire à la ligne de visée). */
 export function trackLateralUncertaintyMeters(track: Track): number {
   return Math.min(track.crossRangeUncertaintyMeters ?? Number.POSITIVE_INFINITY, track.positionUncertaintyMeters ?? 0);

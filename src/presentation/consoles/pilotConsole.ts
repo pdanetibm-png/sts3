@@ -8,6 +8,7 @@ import { REFERENCE_CROSS_SECTION_M2 } from "../../sim/signature";
 import { STANDARD_GRAVITY } from "../../sim/thrusters";
 import type { SimulationWorld } from "../../sim/world";
 import { TrackListView } from "./contactSheet";
+import { findTwinTrack } from "../../knowledge/fusion";
 import { el, formatDistance, formatSpeed } from "../dom";
 import { ShipVisual } from "../render/shipMesh";
 import { FriendlyVisuals } from "../render/friendlyVisuals";
@@ -409,7 +410,9 @@ export class PilotConsole implements ConsolePanel {
     if (!target) return `Mode : ${NAV_MODE_LABELS[command.navMode]} — piste ${command.navTrackId ?? "?"} introuvable, plus de consigne.`;
     const detail = modeLimitation(command.navMode, target) ?? MODE_DESCRIPTIONS[command.navMode];
     const other = track && track.localId !== target.localId ? ` (piste affichée : ${track.localId})` : "";
-    return `Mode : ${NAV_MODE_LABELS[command.navMode]} sur ${target.localId}${other} — ${detail}`;
+    const twin = findTwinTrack(this.body.knowledge.tracks, target, this.body.position);
+    const warning = twin ? ` Attention : ${twin.localId} tout près, l'une des deux est peut-être un leurre.` : "";
+    return `Mode : ${NAV_MODE_LABELS[command.navMode]} sur ${target.localId}${other} — ${detail}${warning}`;
   }
 
   private describeClosestApproach(track: Track | undefined): string {

@@ -2,6 +2,7 @@ import type { Vector3 } from "three";
 import type { Observation, PositionSource, Track } from "../../knowledge/types";
 import type { RigidBody } from "../../sim/rigidBody";
 import { SENSOR_MODE_LABELS } from "../../sim/sensors";
+import { findTwinTrack } from "../../knowledge/fusion";
 import { el, formatDistance, formatSpeed } from "../dom";
 
 export const TRACK_STATE_LABELS: Record<Track["state"], string> = {
@@ -42,6 +43,8 @@ export function renderContactSheet(track: Track, simTime: number, observer: Rigi
   root.appendChild(row("Distance", describeDistance(track, observer)));
   root.appendChild(row("Vitesse", describeVelocity(track, observer)));
   if (track.maneuvering) root.appendChild(row("Manœuvre", "accélération détectée — vitesse moins précise"));
+  const twin = findTwinTrack(observer.knowledge.tracks, track, observer.position);
+  if (twin) root.appendChild(row("Jumelle", `${twin.localId} tout près — leurre ou missile possible`, "contact-row-alert"));
 
   if (!options.compact) {
     const { headingDeg, pitchDeg } = bearingToHeadingPitch(track.bearingEstimateWorld);
@@ -170,8 +173,8 @@ export class TrackListView {
   }
 }
 
-function row(label: string, value: string): HTMLElement {
-  const line = el("div", "contact-row");
+function row(label: string, value: string, extraClass = ""): HTMLElement {
+  const line = el("div", `contact-row ${extraClass}`.trim());
   line.append(el("span", "contact-row-label", label), el("span", "contact-row-value", value));
   return line;
 }

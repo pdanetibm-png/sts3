@@ -14,7 +14,7 @@ import { stepLifeSupport } from "./lifeSupport";
 import { Missile, type MissileSaveState } from "./missile";
 import { launchMissile, stepMissiles } from "./missileSystem";
 import { ECHEANCE_SECONDS, outcomeLabel, resolveOutcomeFromDisarmament, resolveOutcomeFromImpacts } from "./mission";
-import { DEFAULT_ESTIMATION_ASSUMPTIONS } from "../knowledge/fusion";
+import { DEFAULT_ESTIMATION_ASSUMPTIONS, findTwinTrack } from "../knowledge/fusion";
 import type { MissionEvent, MissionEventCategory, MissionOutcome } from "./mission";
 import { updateNavigation } from "./navigation";
 import { PdcEngagementLog, type PdcLogSaveState } from "./pdcLog";
@@ -298,6 +298,8 @@ export class SimulationWorld {
       if (!this.knownPlayerTrackIds.has(track.localId)) {
         this.knownPlayerTrackIds.add(track.localId);
         this.addEvent("detection", `Nouvelle piste ${track.localId} détectée (${SENSOR_MODE_LABELS[track.lastObservation.mode]}).`);
+        const twin = findTwinTrack(player.knowledge.tracks, track, player.position);
+        if (twin) this.addEvent("detection", `Dédoublement : ${track.localId} apparaît tout près de ${twin.localId} — leurre ou missile possible, l'une des deux peut ne plus suivre le vaisseau.`);
         // TIM-03 : nouvelle détection connue de l'équipage ⇒ retour automatique à ×1.
         this.speedMultiplier = 1;
       }

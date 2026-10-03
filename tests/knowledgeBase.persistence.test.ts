@@ -14,15 +14,15 @@ describe("KnowledgeBase — export/import en bloc (SAV-01)", () => {
       { simTime: 1, sourceSensorId: "radar-1", mode: "radar_active", bearingWorld: new Vector3(0, 1, 0), bearingUncertaintyRad: 0.02, rangeMeters: 5000, rangeUncertaintyMeters: 10 },
       new Vector3(),
     );
-    expect(kb.tracks).toHaveLength(2);
+    expect(kb.allTracks).toHaveLength(2);
     const nextIdBefore = kb.nextTrackNumberForSave;
 
-    const saved = kb.tracks.map(trackToSaveState);
+    const saved = kb.allTracks.map(trackToSaveState);
     const restored = new KnowledgeBase();
     restored.loadTracks(saved.map(trackFromSaveState), nextIdBefore);
 
-    expect(restored.tracks).toHaveLength(2);
-    expect(restored.tracks.map((t) => t.localId).sort()).toEqual(kb.tracks.map((t) => t.localId).sort());
+    expect(restored.allTracks).toHaveLength(2);
+    expect(restored.allTracks.map((t) => t.localId).sort()).toEqual(kb.allTracks.map((t) => t.localId).sort());
     expect(restored.nextTrackNumberForSave).toBe(nextIdBefore);
 
     const restoredTrack2 = restored.getTrack("piste-2")!;
@@ -37,7 +37,7 @@ describe("KnowledgeBase — export/import en bloc (SAV-01)", () => {
       { simTime: 0, sourceSensorId: "ir-1", mode: "ir_passive", bearingWorld: new Vector3(1, 0, 0), bearingUncertaintyRad: 0.05 },
       new Vector3(),
     );
-    const saved = kb.tracks.map(trackToSaveState);
+    const saved = kb.allTracks.map(trackToSaveState);
     const restored = new KnowledgeBase();
     restored.loadTracks(saved.map(trackFromSaveState), kb.nextTrackNumberForSave);
 
@@ -47,6 +47,6 @@ describe("KnowledgeBase — export/import en bloc (SAV-01)", () => {
       new Vector3(),
     );
     expect(newTrack.localId).not.toBe("piste-1");
-    expect(restored.tracks.map((t) => t.localId)).toContain(newTrack.localId);
+    expect(restored.allTracks.map((t) => t.localId)).toContain(newTrack.localId);
   });
 });

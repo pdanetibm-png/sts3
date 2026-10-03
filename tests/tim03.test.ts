@@ -16,7 +16,21 @@ function buildDuelWorld() {
 }
 
 describe("TIM-03 — retour automatique à ×1 sur alerte critique connue", () => {
-  it("nouvelle piste détectée par le joueur : retour automatique à ×1", () => {
+  it("nouvelle piste confirmée par le joueur : retour automatique à ×1", () => {
+    const world = buildDuelWorld();
+    const player = world.getBody("joueur-1")!;
+    for (const simTime of [0, 0.5]) {
+      player.knowledge.ingest(
+        { simTime, sourceSensorId: "ir-1", mode: "ir_passive", bearingWorld: new Vector3(1, 0, 0), bearingUncertaintyRad: 0.05 },
+        player.position,
+      );
+    }
+    world.speedMultiplier = 10;
+    world.advance(1 / 60);
+    expect(world.speedMultiplier).toBe(1);
+  });
+
+  it("une détection isolée (piste candidate) ne ralentit pas le temps et ne s'annonce pas", () => {
     const world = buildDuelWorld();
     const player = world.getBody("joueur-1")!;
     player.knowledge.ingest(
@@ -25,7 +39,10 @@ describe("TIM-03 — retour automatique à ×1 sur alerte critique connue", () =
     );
     world.speedMultiplier = 10;
     world.advance(1 / 60);
-    expect(world.speedMultiplier).toBe(1);
+    expect(world.speedMultiplier).toBe(10);
+    expect(world.events.some((e) => e.category === "detection")).toBe(false);
+    expect(player.knowledge.tracks).toHaveLength(0);
+    expect(player.knowledge.allTracks).toHaveLength(1);
   });
 
   it("propergol du joueur sous le seuil critique (5 %) : retour automatique à ×1", () => {

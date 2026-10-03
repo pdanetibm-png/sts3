@@ -153,6 +153,11 @@ export interface DoctrineDef {
   /** Avance maximale d'un ailier sur son chef de formation vers la cible (m) : il ne part pas seul devant. */
   wingmanMaxLeadMeters: number;
   /**
+   * Poussée d'un ailier qui a pris du retard sur son chef (0 à 1, défaut 1) : la poussée d'approche
+   * ne suffit pas à rattraper un chef qui pousse plus fort.
+   */
+  wingmanCatchUpThrottle?: number;
+  /**
    * Leurres (CONCEPTION_LEURRES.md §7) — champs optionnels : sans eux, l'IA ne largue jamais.
    * Temps d'arrivée estimé d'une menace (piste « missile probable ») en deçà duquel on largue.
    */

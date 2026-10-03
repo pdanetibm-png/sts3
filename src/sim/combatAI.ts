@@ -109,7 +109,10 @@ export function stepCombatAI(body: RigidBody, dt: number, context: CombatAIConte
 
   if (!decoyTacticActive) steerTowardTrack(body, bestTrack, hasUsableTrack, hasKnownPosition, engagementRange);
 
-  const inRange = hasKnownPosition && bestTrack!.positionEstimateWorld!.distanceTo(body.position) <= engagementRange;
+  // Tir seulement sur un contact classé « vaisseau probable » : une piste inconnue peut être un
+  // missile ou un débris, et un missile ne peut atteindre qu'un vaisseau.
+  const inRange =
+    hasKnownPosition && bestTrack!.classification === "vaisseau probable" && bestTrack!.positionEstimateWorld!.distanceTo(body.position) <= engagementRange;
   if (inRange && body.missileCount > 0 && state.timeSinceLastShotSeconds >= doctrine.fireCooldownSeconds) {
     const quality = estimateEngagementQuality(bestTrack, body.position);
     if (quality === "moyenne" || quality === "élevée") {
@@ -275,6 +278,8 @@ function steerTowardTrack(body: RigidBody, track: Track | undefined, hasUsableTr
     return;
   }
   let thrustDirection: THREE.Vector3 | null = null;
+  // En retard sur le chef de formation : poussée de rattrapage plutôt que d'approche.
+  let catchingUp = false;
   if (hasKnownPosition) {
     const toTarget = track.positionEstimateWorld!.clone().sub(body.position);
     const distance = toTarget.length();
@@ -295,6 +300,7 @@ function steerTowardTrack(body: RigidBody, track: Track | undefined, hasUsableTr
     if (formation?.position === "derriere") {
       const catchUp = Math.min(doctrine.cruiseSpeedMps, Math.sqrt(2 * braking * formation.gapMeters));
       desiredClosing = Math.max(desiredClosing, Math.min(brakeProfile, formation.leaderClosing + catchUp));
+      catchingUp = true;
     }
     // On peut renoncer à sa propre vitesse d'approche, jamais reculer pour tenir la distance :
     // une cible qui fonce sur nous, on la laisse venir plutôt que de brûler du propergol à fuir.
@@ -309,7 +315,9 @@ function steerTowardTrack(body: RigidBody, track: Track | undefined, hasUsableTr
   } else {
     const bearing = track.bearingEstimateWorld.clone();
     const closing = body.velocity.dot(bearing);
-    if (closing < doctrine.cruiseSpeedMps - doctrine.brakeClosingSpeedMps && wingmanFormation(body, bearing, null, track)?.position !== "devant") thrustDirection = bearing;
+    const formation = wingmanFormation(body, bearing, null, track);
+    catchingUp = formation?.position === "derriere";
+    if ((closing < doctrine.cruiseSpeedMps - doctrine.brakeClosingSpeedMps || catchingUp) && formation?.position !== "devant") thrustDirection = bearing;
   }
 
   if (!thrustDirection) {
@@ -321,7 +329,8 @@ function steerTowardTrack(body: RigidBody, track: Track | undefined, hasUsableTr
   body.command.attitudeHoldEngaged = true;
   // Ne pousse qu'une fois à peu près aligné : sinon la poussée partirait de travers.
   const forward = localAxis.applyQuaternion(body.attitude);
-  body.command.throttle = forward.dot(thrustDirection) > 0.95 ? doctrine.approachThrottle : 0;
+  const throttle = catchingUp ? (doctrine.wingmanCatchUpThrottle ?? 1) : doctrine.approachThrottle;
+  body.command.throttle = forward.dot(thrustDirection) > 0.95 ? throttle : 0;
 }
 
 /**

@@ -61,7 +61,8 @@ describe("Pistes au gisement seul — rotation de la ligne de visée", () => {
   it("la deuxième mesure n'est rattachée que dans la limite de la vitesse angulaire supposée", () => {
     // 0,05 rad/s mesurés toutes les 1,5 s : 75 mrad d'écart, au-delà de ce que 0,01 rad/s explique.
     const knowledge = followCrossingTarget(0.05, 1.5, 3.1);
-    expect(knowledge.tracks.length).toBeGreaterThan(1);
+    // Pistes candidates comprises : l'association elle-même a refusé de rattacher.
+    expect(knowledge.allTracks.length).toBeGreaterThan(1);
   });
 
   it("deux contacts distincts qui défilent restent deux pistes", () => {

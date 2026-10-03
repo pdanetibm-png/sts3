@@ -1964,6 +1964,11 @@ button {
   gap: 8px;
 }
 
+.contact-row-alert .contact-row-value,
+.contact-row-alert .contact-row-label {
+  color: var(--danger);
+}
+
 .contact-row-label {
   color: var(--text-1);
 }

@@ -16,6 +16,7 @@ Statut : **en cours de mise en place** (branche `ameliorations-postes-et-capteur
 | Triangulation avec un allié, distance par manœuvre, incertitude en « cigare » | **Fait** : `knowledge/passiveRanging.ts`, gisements partagés par la liaison de données |
 | Indicateur de discrétion (Détection), doctrine d'émission de l'IA | **Fait** : `sim/detectability.ts`, doctrine `radarBurstIntervalSeconds` |
 | Tests d'interface, CI GitHub, icône, découpage du paquet, liste des pistes en Pilotage | **Fait** |
+| D1–D4 (partie `t1714s` : pistes fragmentées, leurre qui vole une piste, ailier distancé, IA qui tire sur un missile) | **Fait** (voir section D) |
 | Ordres à l'ailier, salves coordonnées | À faire |
 | Bilan de partie automatique, banc d'essai sans affichage | À faire |
 | Simulation dans un web worker | À faire (mesurer d'abord le coût d'un pas en 2 contre 2) |
@@ -43,6 +44,15 @@ Statut : **en cours de mise en place** (branche `ameliorations-postes-et-capteur
 | C5 | Probabilité de détection, seuils G par axe, autonomie de secours | Réglages | Faible | Faible |
 
 ---
+
+## D. Partie `scs-deroulement-20260923-t1714s` (03/10 au soir)
+
+Kestrel et Hawk contre la corvette ; abandon à 1 714 s. Distance par triangulation tenue pendant toute l'approche radar éteint (erreur de 5 à 14 km à 3 000 km), IA silencieuse jusqu'à portée, quatre missiles tirés et ratés (365 m à 5,9 km), croisement à 8 km, puis poursuite d'un leurre.
+
+- **D1. Un missile vu en IR seul créait une piste par image** (6 pistes pour le missile-4 : sauts de 4 à 10° entre deux images IR). **Fait** : une détection isolée reste une piste candidate, invisible des postes et de l'IA, sans annonce ni retour à ×1, jusqu'à une deuxième mesure (logique « M sur N ») ; une piste au gisement seul qui tourne vite accepte une variation de sa vitesse angulaire (`successionScore`). Au rejeu : 2 nouvelles pistes au lieu de 6 ; celle qui reste est le croisement (108° en 10 s).
+- **D2. Le leurre ennemi a pris la piste suivie par l'interception, sans avertissement.** **Fait** : `findTwinTrack` signale une piste qui apparaît dans la même direction (< 2°) et à une distance voisine (< 20 %) d'une autre — journal (« Dédoublement »), ligne « Jumelle » dans la fiche, avertissement dans le mode de pilotage. Au rejeu : alerte à 1 557 s. Limite : l'alerte ne dit pas laquelle des deux est le leurre (comparer la luminosité IR d'une mesure à l'autre reste à faire).
+- **D3. L'ailier ne rattrapait pas un chef plus rapide** : il poussait à `approachThrottle` (50 %). **Fait** : en retard au-delà de `wingmanMaxLeadMeters`, il pousse à `wingmanCatchUpThrottle` (doctrine, défaut 100 %). Au rejeu : le Hawk arrive à 114 km de l'ennemi et tire ses deux missiles.
+- **D4. L'IA tirait sur une piste non classée** (le Hawk, au rejeu, sur un missile ennemi). **Fait** : l'IA ne tire que sur un « vaisseau probable » ; une piste inconnue lui sert seulement à s'orienter.
 
 ## A. Priorité haute : décide de l'issue des combats
 

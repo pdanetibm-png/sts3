@@ -79,7 +79,7 @@ export function buildSaveDocument(world: SimulationWorld, scenario: ScenarioDefi
       knownPlayerTrackIds,
       bodies: world.bodies.map((body) => ({
         body: body.toSaveState(),
-        knowledgeTracks: body.knowledge.tracks.map(trackToSaveState),
+        knowledgeTracks: body.knowledge.allTracks.map(trackToSaveState),
         knowledgeNextTrackNumber: body.knowledge.nextTrackNumberForSave,
       })),
       missiles: world.missiles.map((missile) => missile.toSaveState()),
