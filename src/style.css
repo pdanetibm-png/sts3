@@ -3704,3 +3704,366 @@ button {
 .pdc-mount-line {
   max-width: 280px;
 }
+
+/* --- Magasin de vaisseau (CONCEPTION_MAGASIN.md) --- */
+.briefing-shop {
+  align-self: flex-start;
+  margin-top: 8px;
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.shipyard-screen {
+  max-width: 1320px;
+  margin: 24px auto;
+  padding: 24px;
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.shipyard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.shipyard-title h1 {
+  margin: 0;
+  font-size: 24px;
+}
+
+.shipyard-subtitle {
+  margin: 4px 0 0;
+  color: var(--text-1);
+  font-size: 13px;
+  max-width: 520px;
+}
+
+.shipyard-budget {
+  min-width: 340px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.shipyard-budget-figures {
+  display: flex;
+  gap: 20px;
+  justify-content: flex-end;
+}
+
+.shipyard-budget-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.shipyard-budget-label {
+  font-family: var(--font-display);
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-1);
+}
+
+.shipyard-budget-value {
+  font-family: var(--font-mono);
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+}
+
+.shipyard-left .shipyard-budget-value {
+  color: var(--accent-2);
+}
+
+.shipyard-over .shipyard-budget-value,
+.shipyard-over .shipyard-budget-label {
+  color: var(--danger);
+}
+
+.shipyard-meter {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--bg-3);
+  overflow: hidden;
+}
+
+.shipyard-meter-fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.2s ease;
+}
+
+.shipyard-meter-over {
+  background: var(--danger);
+}
+
+.shipyard-body {
+  display: grid;
+  grid-template-columns: minmax(200px, 240px) minmax(0, 1fr) minmax(300px, 350px);
+  gap: 20px;
+  align-items: start;
+}
+
+.shipyard-column {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.shipyard-heading {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 14px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-1);
+}
+
+.shipyard-class {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-align: left;
+  padding: 12px 14px;
+  background: var(--bg-2);
+  color: var(--text-0);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  font: inherit;
+}
+
+.shipyard-class:hover {
+  border-color: var(--accent);
+}
+
+.shipyard-class:focus-visible,
+.shipyard-select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.shipyard-class-selected {
+  border-color: var(--accent);
+  border-left-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent) inset;
+}
+
+.shipyard-class-name {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.shipyard-class-price {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--accent);
+}
+
+.shipyard-class-desc {
+  font-size: 12px;
+  color: var(--text-1);
+}
+
+.shipyard-class-facts {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-1);
+}
+
+.shipyard-group {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.shipyard-group-title {
+  margin: 0;
+  font-size: 15px;
+}
+
+.shipyard-note {
+  margin: -4px 0 0;
+  font-size: 11px;
+  color: var(--text-1);
+}
+
+.shipyard-slot {
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr);
+  grid-template-areas:
+    "label control"
+    ". detail";
+  column-gap: 12px;
+  row-gap: 4px;
+  align-items: center;
+}
+
+.shipyard-slot-label {
+  grid-area: label;
+  color: var(--text-1);
+  font-size: 13px;
+}
+
+.shipyard-slot-control {
+  grid-area: control;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+}
+
+.shipyard-slot-detail {
+  grid-area: detail;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-1);
+}
+
+.shipyard-select {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg-3);
+  color: var(--text-0);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 5px 8px;
+  font: inherit;
+  font-size: 13px;
+}
+
+.shipyard-quantity {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.shipyard-quantity-value {
+  min-width: 44px;
+  text-align: center;
+  font-family: var(--font-mono);
+  color: var(--warning);
+}
+
+.shipyard-stat {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.shipyard-stat-label {
+  color: var(--text-1);
+}
+
+.shipyard-stat-label[title] {
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
+
+.shipyard-stat-value {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.shipyard-delta {
+  margin-left: 6px;
+  font-size: 11px;
+}
+
+.shipyard-delta-good {
+  color: var(--accent-2);
+}
+
+.shipyard-delta-bad {
+  color: var(--danger);
+}
+
+.shipyard-delta-change {
+  color: var(--warning);
+}
+
+.shipyard-total {
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+  font-weight: 700;
+}
+
+.shipyard-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.shipyard-problems {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--danger);
+  font-size: 13px;
+}
+
+.shipyard-actions {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+
+@media (max-width: 1100px) {
+  .shipyard-body {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .shipyard-classes {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  }
+
+  .shipyard-classes .shipyard-heading {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 760px) {
+  .shipyard-screen {
+    margin: 0;
+    padding: 16px;
+    border-radius: 0;
+  }
+
+  .shipyard-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .shipyard-budget {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .shipyard-slot {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "label"
+      "control"
+      "detail";
+  }
+}

@@ -513,7 +513,7 @@ export class CrossSectionConsole implements ConsolePanel {
       }
       case "moteur": {
         const principal = body.thrusters.find((t) => t.kind === "principal");
-        const meganewtons = principal ? (principal.maxThrustNewtons / 1e6).toFixed(0) : "?";
+        const meganewtons = principal ? (principal.maxThrustNewtons / 1e6).toLocaleString("fr-FR", { maximumFractionDigits: 1 }) : "?";
         if (this.shownThrottle > 0.01) return { status: "info", text: `Poussée ${Math.round(body.command.throttle * 100)} % · ${meganewtons} MN max` };
         return { status: "ok", text: `Coupé · ${meganewtons} MN max` };
       }

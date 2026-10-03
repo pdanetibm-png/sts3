@@ -13,6 +13,7 @@
     "bearingDriftRadPerSecond": 0.0005,
     "unknownSpeedMps": 10000
   },
+  "budgetCredits": 160000,
   "ships": [
     {
       "id": "joueur-1",

@@ -28,14 +28,26 @@ interface Named {
   name: string;
 }
 
-export interface HullComponent extends Named {
+/**
+ * Ce qu'un module vendu au magasin ajoute à un vaisseau : son prix, et sa masse (la masse d'un
+ * vaisseau est celle de sa coque plus celle de ses modules). Optionnels : sans prix, un module ne
+ * se vend pas ; sans masse, il est compté dans la coque.
+ */
+interface Merchandise {
+  /** Prix en crédits. */
+  price?: number;
+  massKg?: number;
+}
+
+export interface HullComponent extends Named, Merchandise {
+  /** Masse à vide de la coque seule (structure, équipage, propulseurs d'attitude) ; les modules s'y ajoutent. */
   dryMassKg: number;
   momentOfInertiaKgM2: Vec3Tuple;
   collisionRadiusMeters: number;
   signature: SignatureDef;
 }
 
-export interface EngineComponent extends Named {
+export interface EngineComponent extends Named, Merchandise {
   kind: ThrusterDef["kind"];
   maxThrustNewtons: number;
   specificImpulseSeconds: number;
@@ -43,27 +55,29 @@ export interface EngineComponent extends Named {
   wasteHeatFraction?: number;
 }
 
-export interface TankComponent extends Named {
+export interface TankComponent extends Named, Merchandise {
   capacityKg: number;
 }
 
-export interface ReactorComponent extends Named {
+export interface ReactorComponent extends Named, Merchandise {
   maxPowerWatts: number;
   fuelConsumptionKgPerSecondAtMaxPower: number;
   efficiency: number;
 }
 
-export interface BatteryComponent extends Named {
+export interface BatteryComponent extends Named, Merchandise {
   capacityWattSeconds: number;
   maxChargeRateWatts: number;
   maxDischargeRateWatts: number;
 }
 
-export type SensorComponent = Named & Omit<SensorDef, "id">;
+export type SensorComponent = Named & Merchandise & Omit<SensorDef, "id">;
 export type CrewComponent = Named & CrewDef;
-export type MissileComponent = Named & MissileDef;
-export type DecoyComponent = Named & DecoyDef;
-export type PdcComponent = Named & PdcDef;
+/** Prix à l'unité ; la masse d'une munition est celle de sa fiche (structure et propergol). */
+export type MissileComponent = Named & Omit<Merchandise, "massKg"> & MissileDef;
+export type DecoyComponent = Named & Omit<Merchandise, "massKg"> & DecoyDef;
+/** Prix et masse d'une tourelle, magasin plein compris. */
+export type PdcComponent = Named & Merchandise & PdcDef;
 export type DoctrineComponent = Named & DoctrineDef;
 
 export interface ShipAssembly extends Named {
@@ -81,6 +95,25 @@ export interface ShipAssembly extends Named {
   decoys?: { decoy: string; count: number };
   /** Optionnel : tourelles de défense rapprochée montées. */
   pdcs?: { id: string; component: string }[];
+}
+
+/**
+ * Classe de vaisseau du magasin (CONCEPTION_MAGASIN.md) : une coque et son assemblage de base,
+ * avec ce qu'elle peut emporter. Le joueur part de l'assemblage de base et en change les modules.
+ */
+export interface ShipClass extends Named {
+  description?: string;
+  /** Assemblage de départ : coque, propulseurs d'attitude, équipage, doctrine, charges fixes, batterie. */
+  baseAssembly: string;
+  limits: {
+    /** Missiles en soute, au plus. */
+    missiles: number;
+    decoys: number;
+    /** Emplacements de tourelle PDC. */
+    pdcMounts: number;
+    /** Capacité du plus gros réservoir que la coque peut loger (kg de propergol). */
+    maxTankCapacityKg: number;
+  };
 }
 
 export interface CatalogDocument {
@@ -102,6 +135,8 @@ export interface CatalogDocument {
     pdcs?: PdcComponent[];
   };
   assemblies: ShipAssembly[];
+  /** Optionnel : classes proposées au magasin. */
+  shipClasses?: ShipClass[];
 }
 
 /** Vaisseau d'un scénario : un assemblage du catalogue, placé et affecté à un camp. */
@@ -124,6 +159,8 @@ export interface ScenarioFile {
   catalog: string;
   deadlineSeconds?: number;
   assumptions?: EstimationAssumptions;
+  /** Budget du magasin pour le vaisseau du joueur (crédits). Sans budget, pas de magasin. */
+  budgetCredits?: number;
   ships: ScenarioShipRef[];
 }
 
@@ -203,6 +240,28 @@ export function validateCatalog(candidate: unknown): CatalogDocument {
     });
   }
 
+  if (doc.shipClasses !== undefined) {
+    if (!Array.isArray(doc.shipClasses)) reasons.push("shipClasses doit être une liste");
+    else {
+      const assemblyIds = new Set((Array.isArray(doc.assemblies) ? doc.assemblies : []).map((a) => a?.id));
+      const seenClasses = new Set<string>();
+      doc.shipClasses.forEach((shipClass, i) => {
+        const tag = `classe « ${shipClass?.id ?? i} »`;
+        if (typeof shipClass?.id !== "string" || shipClass.id.length === 0) reasons.push(`shipClasses[${i}].id manquant`);
+        else if (seenClasses.has(shipClass.id)) reasons.push(`shipClasses : identifiant dupliqué « ${shipClass.id} »`);
+        else seenClasses.add(shipClass.id);
+        if (typeof shipClass?.name !== "string" || shipClass.name.length === 0) reasons.push(`${tag} : name manquant`);
+        if (!assemblyIds.has(shipClass?.baseAssembly)) reasons.push(`${tag} : assemblage de base inconnu « ${String(shipClass?.baseAssembly)} »`);
+        const limits = (shipClass?.limits ?? {}) as Record<string, unknown>;
+        for (const field of ["missiles", "decoys", "pdcMounts"]) {
+          const value = limits[field];
+          if (typeof value !== "number" || !Number.isInteger(value) || value < 0) reasons.push(`${tag} : limits.${field} doit être un entier positif ou nul`);
+        }
+        if (!(typeof limits.maxTankCapacityKg === "number" && limits.maxTankCapacityKg > 0)) reasons.push(`${tag} : limits.maxTankCapacityKg doit être strictement positif`);
+      });
+    }
+  }
+
   if (reasons.length > 0) throw new CatalogError(reasons);
   return doc as CatalogDocument;
 }
@@ -213,8 +272,12 @@ function byId<T extends Named>(list: T[], id: string): T {
   return found;
 }
 
+/** Fiche physique seule : sans identifiant, nom, prix ni masse de module (déjà comptée dans la structure). */
 function withoutMeta<T extends Named>(entry: T): Omit<T, "id" | "name"> {
-  const { id: _id, name: _name, ...rest } = entry;
+  const { id: _id, name: _name, ...rest } = entry as T & Merchandise;
+  delete rest.price;
+  // Une munition garde sa masse propre (fiche missile ou leurre) : seule celle des modules est retirée.
+  delete (rest as Merchandise).massKg;
   return rest;
 }
 
@@ -229,6 +292,16 @@ export function resolveShip(catalog: CatalogDocument, ref: ScenarioShipRef): Shi
   const tank = byId(c.tanks, assembly.tank.component);
   const battery = byId(c.batteries, assembly.battery.component);
   const decoy = assembly.decoys ? byId(c.decoys ?? [], assembly.decoys.decoy) : undefined;
+  // Masse à vide : la coque, plus chaque module monté (munitions à part : la simulation les compte).
+  const modules: Merchandise[] = [
+    ...assembly.thrusters.map((mount) => byId(c.engines, mount.component)),
+    tank,
+    byId(c.reactors, assembly.reactor),
+    battery,
+    ...assembly.sensors.map((mount) => byId(c.sensors, mount.component)),
+    ...(assembly.pdcs ?? []).map((mount) => byId(c.pdcs ?? [], mount.component)),
+  ];
+  const dryMassKg = hull.dryMassKg + modules.reduce((sum, module) => sum + (module.massKg ?? 0), 0);
 
   return clone({
     id: ref.id,
@@ -237,7 +310,7 @@ export function resolveShip(catalog: CatalogDocument, ref: ScenarioShipRef): Shi
     designName: assembly.name,
     crew: withoutMeta(byId(c.crews, assembly.crew)),
     doctrine: withoutMeta(byId(c.doctrines, assembly.doctrine)),
-    structure: { dryMassKg: hull.dryMassKg, momentOfInertiaKgM2: hull.momentOfInertiaKgM2, collisionRadiusMeters: hull.collisionRadiusMeters },
+    structure: { dryMassKg, momentOfInertiaKgM2: hull.momentOfInertiaKgM2, collisionRadiusMeters: hull.collisionRadiusMeters },
     thrusters: assembly.thrusters.map((mount) => {
       const engine = byId(c.engines, mount.component);
       return {

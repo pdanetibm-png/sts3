@@ -1,4 +1,4 @@
-import { CatalogError, isScenarioFile, resolveScenario, validateCatalog } from "./catalog";
+import { CatalogError, isScenarioFile, resolveScenario, validateCatalog, type CatalogDocument, type ScenarioFile } from "./catalog";
 import type {
   ConsumerDef,
   ConsumerPriorityGroup,
@@ -346,12 +346,20 @@ async function fetchJson(url: string): Promise<unknown> {
  * scénario autonome (celui qu'embarquent les sauvegardes).
  */
 export async function loadScenario(url: string): Promise<ScenarioDefinition> {
+  return (await loadScenarioSources(url)).scenario;
+}
+
+/**
+ * Comme `loadScenario`, en gardant aussi le fichier de scénario et le catalogue d'origine : le
+ * magasin en a besoin pour reconstruire le vaisseau du joueur. Absents pour un scénario autonome.
+ */
+export async function loadScenarioSources(url: string): Promise<{ scenario: ScenarioDefinition; file?: ScenarioFile; catalog?: CatalogDocument }> {
   const json = await fetchJson(url);
-  if (!isScenarioFile(json)) return validateScenario(json);
+  if (!isScenarioFile(json)) return { scenario: validateScenario(json) };
   const catalogUrl = new URL(json.catalog, new URL(url, window.location.href)).toString();
   try {
     const catalog = validateCatalog(await fetchJson(catalogUrl));
-    return validateScenario(resolveScenario(json, catalog));
+    return { scenario: validateScenario(resolveScenario(json, catalog)), file: json, catalog };
   } catch (error) {
     if (error instanceof CatalogError) throw new ScenarioValidationError(error.reasons);
     throw error;

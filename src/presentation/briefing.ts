@@ -25,11 +25,19 @@ function storeComposition(composition: FleetComposition): void {
   }
 }
 
+/** Accès au magasin depuis le briefing (CONCEPTION_MAGASIN.md). */
+export interface BriefingShop {
+  /** Coût du vaisseau du joueur rapporté au budget, déjà mis en forme. */
+  costLabel: string;
+  open(): void;
+}
+
 /**
- * Écran de briefing (MIS-01) : objectif, composition de la flotte (alliés / ennemis) et
- * réserves initiales — équipement identique pour tous les vaisseaux (MIS-03).
+ * Écran de briefing (MIS-01) : objectif, composition de la flotte (alliés / ennemis), vaisseau du
+ * joueur et réserves initiales. Les alliés reprennent le vaisseau du joueur, les ennemis celui du
+ * scénario. Avec un magasin, le vaisseau du joueur s'y modifie.
  */
-export function renderBriefing(base: ScenarioDefinition, onStart: (scenario: ScenarioDefinition) => void): HTMLElement {
+export function renderBriefing(base: ScenarioDefinition, onStart: (scenario: ScenarioDefinition) => void, shop?: BriefingShop): HTMLElement {
   const composition = readStoredComposition();
   const root = el("div", "briefing-screen");
   root.appendChild(el("h1", "briefing-title", "Briefing de mission"));
@@ -77,7 +85,16 @@ export function renderBriefing(base: ScenarioDefinition, onStart: (scenario: Sce
     const allies = scenario.ships.filter((s) => s.affiliation === "allie");
     const enemies = scenario.ships.filter((s) => s.affiliation === "adversaire");
     cards.replaceChildren();
-    if (player) cards.appendChild(renderShipCard(player, "Votre vaisseau", "briefing-card-own"));
+    if (player) {
+      const card = renderShipCard(player, "Votre vaisseau", "briefing-card-own");
+      if (shop) {
+        card.appendChild(row("Coût", shop.costLabel));
+        const shopButton = el("button", "btn briefing-shop", "Magasin : changer de vaisseau…");
+        shopButton.addEventListener("click", () => shop.open());
+        card.appendChild(shopButton);
+      }
+      cards.appendChild(card);
+    }
 
     const alliesCard = el("div", "briefing-ship-card briefing-card-ally");
     alliesCard.appendChild(el("h3", undefined, `Alliés : ${allies.length}`));
@@ -98,7 +115,7 @@ export function renderBriefing(base: ScenarioDefinition, onStart: (scenario: Sce
       el(
         "p",
         "help-text",
-        "Équipement identique au vôtre (symétrie — section 9.1). Positions inconnues : chaque contact détecté s'affiche en rouge.",
+        `${enemies[0]?.designName ? `Matériel : ${enemies[0].designName}. ` : ""}Positions inconnues : chaque contact détecté s'affiche en rouge.`,
       ),
     );
     cards.appendChild(enemiesCard);

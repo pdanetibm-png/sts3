@@ -1,15 +1,18 @@
 import { installBackgroundGuard } from "./presentation/backgroundGuard";
-import { renderBriefing } from "./presentation/briefing";
+import { renderBriefing, type BriefingShop } from "./presentation/briefing";
 import { renderDebrief } from "./presentation/debrief";
 import { el } from "./presentation/dom";
 import { LocalSaveStore } from "./presentation/persistence/localSaveStore";
 import { SaveController } from "./presentation/persistence/saveController";
 import { PerfOverlay } from "./presentation/perfOverlay";
 import { renderResumePrompt } from "./presentation/resumePrompt";
+import { readStoredLoadout, renderShipyard, storeLoadout } from "./presentation/shipyard";
 import { Ui } from "./presentation/ui";
 import { ReplayRecorder } from "./sim/replay";
 import { restoreWorldFromSave, type SaveDocument } from "./sim/save";
-import { loadScenario, ScenarioValidationError, validateScenario } from "./sim/scenario";
+import type { CatalogDocument, ScenarioFile } from "./sim/catalog";
+import { loadScenarioSources, ScenarioValidationError, validateScenario } from "./sim/scenario";
+import { applyLoadout, classForAssembly, defaultLoadout, formatCredits, loadoutPrice, type ShipLoadout } from "./sim/shipyard";
 import type { ScenarioDefinition } from "./sim/types";
 import { SimulationWorld } from "./sim/world";
 import "./style.css";
@@ -29,13 +32,29 @@ const TEST_MODE = true;
 
 const localSaveStore = new LocalSaveStore(window.localStorage);
 
+/**
+ * Menu de partie : le scénario chargé et, s'il vient d'un catalogue et donne un budget, le magasin
+ * où le joueur configure son vaisseau (`loadout` null : le vaisseau du scénario, tel quel).
+ */
+interface Menu {
+  scenario: ScenarioDefinition;
+  shop: { catalog: CatalogDocument; file: ScenarioFile; budgetCredits: number } | null;
+  loadout: ShipLoadout | null;
+}
+
 async function main(): Promise<void> {
   const appRoot = document.getElementById("app");
   if (!appRoot) throw new Error("Élément #app introuvable");
 
-  let scenario: ScenarioDefinition;
+  let menu: Menu;
   try {
-    scenario = await loadScenario("/scenarios/demo-duel.json");
+    const sources = await loadScenarioSources("/scenarios/demo-duel.json");
+    const budgetCredits = sources.file?.budgetCredits;
+    const shop =
+      sources.catalog && sources.file && budgetCredits !== undefined && sources.catalog.shipClasses?.length
+        ? { catalog: sources.catalog, file: sources.file, budgetCredits }
+        : null;
+    menu = { scenario: sources.scenario, shop, loadout: shop ? readStoredLoadout(shop.catalog, shop.budgetCredits) : null };
   } catch (error) {
     renderFatalError(appRoot, error);
     return;
@@ -43,15 +62,30 @@ async function main(): Promise<void> {
 
   const resumable = localSaveStore.readLatestValid();
   if (resumable && resumable.doc.world.missionOutcome === "en_cours") {
-    showResumePrompt(appRoot, scenario, resumable.doc);
+    showResumePrompt(appRoot, menu, resumable.doc);
     return;
   }
 
-  showBriefing(appRoot, scenario);
+  showBriefing(appRoot, menu);
+}
+
+/** Le scénario, avec le vaisseau du joueur tel que configuré au magasin. */
+function menuScenario(menu: Menu): ScenarioDefinition {
+  if (!menu.shop || !menu.loadout) return menu.scenario;
+  return validateScenario(applyLoadout(menu.shop.catalog, menu.shop.file, menu.loadout));
+}
+
+/** Configuration courante : celle du joueur, sinon celle d'origine de la classe du vaisseau du scénario. */
+function currentLoadout(menu: Menu): ShipLoadout | null {
+  if (!menu.shop) return null;
+  if (menu.loadout) return menu.loadout;
+  const playerRef = menu.shop.file.ships.find((s) => s.affiliation === "joueur");
+  const shipClass = playerRef && classForAssembly(menu.shop.catalog, playerRef.assembly);
+  return shipClass ? defaultLoadout(menu.shop.catalog, shipClass) : null;
 }
 
 /** Section 10, SAV-01 : sauvegarde valide d'une mission en cours trouvée au démarrage. */
-function showResumePrompt(appRoot: HTMLElement, freshScenario: ScenarioDefinition, doc: SaveDocument): void {
+function showResumePrompt(appRoot: HTMLElement, menu: Menu, doc: SaveDocument): void {
   appRoot.replaceChildren(
     renderResumePrompt(
       doc,
@@ -70,15 +104,52 @@ function showResumePrompt(appRoot: HTMLElement, freshScenario: ScenarioDefinitio
       },
       () => {
         localSaveStore.clearAll();
-        showBriefing(appRoot, freshScenario);
+        showBriefing(appRoot, menu);
       },
     ),
   );
 }
 
 /** Briefing → partie → débrief → redémarrage, sans rechargement manuel de l'utilisateur (MIS-01). */
-function showBriefing(appRoot: HTMLElement, scenario: ScenarioDefinition): void {
-  appRoot.replaceChildren(renderBriefing(scenario, (fleetScenario) => startMission(appRoot, fleetScenario)));
+function showBriefing(appRoot: HTMLElement, menu: Menu): void {
+  let scenario: ScenarioDefinition;
+  try {
+    scenario = menuScenario(menu);
+  } catch (error) {
+    renderFatalError(appRoot, error);
+    return;
+  }
+  const loadout = currentLoadout(menu);
+  const shop: BriefingShop | undefined =
+    menu.shop && loadout
+      ? {
+          costLabel: `${formatCredits(loadoutPrice(menu.shop.catalog, loadout).total)} sur ${formatCredits(menu.shop.budgetCredits)}`,
+          open: () => showShipyard(appRoot, menu, loadout),
+        }
+      : undefined;
+  appRoot.replaceChildren(renderBriefing(scenario, (fleetScenario) => startMission(appRoot, fleetScenario), shop));
+  window.scrollTo(0, 0);
+}
+
+/** Magasin (CONCEPTION_MAGASIN.md) : la configuration validée est retenue pour les parties suivantes. */
+function showShipyard(appRoot: HTMLElement, menu: Menu, initial: ShipLoadout): void {
+  const shop = menu.shop!;
+  const reference = menu.scenario.ships.find((s) => s.affiliation === "adversaire") ?? menu.scenario.ships[0];
+  appRoot.replaceChildren(
+    renderShipyard({
+      catalog: shop.catalog,
+      budgetCredits: shop.budgetCredits,
+      reference,
+      initial,
+      onConfirm: (loadout) => {
+        menu.loadout = loadout;
+        storeLoadout(loadout);
+        showBriefing(appRoot, menu);
+      },
+      onCancel: () => showBriefing(appRoot, menu),
+    }),
+  );
+  window.scrollTo(0, 0);
 }
 
 function startMission(appRoot: HTMLElement, scenario: ScenarioDefinition, restoredWorld?: SimulationWorld): void {

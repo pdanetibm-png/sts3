@@ -1,12 +1,32 @@
 {
-  "catalogVersion": "5",
-  "description": "Catalogue de matériel de base. Unités SI (m, s, kg, N, W, K). « Classique × 2 » : technologies actuelles doublées (propulsion nucléaire thermique, missiles chimiques avancés). « Epstein » : fiction assumée, type The Expanse. Chaque vaisseau est un assemblage de composants ; les scénarios y font référence par identifiant.",
+  "catalogVersion": "6",
+  "description": "Catalogue de matériel de base. Unités SI (m, s, kg, N, W, K). « Classique × 2 » : technologies actuelles doublées (propulsion nucléaire thermique, missiles chimiques avancés). « Epstein » : fiction assumée, type The Expanse. Chaque vaisseau est un assemblage de composants ; les scénarios y font référence par identifiant. Prix en crédits (Cr) et masses des modules : le magasin s'en sert, la masse d'un vaisseau est celle de sa coque plus celle de ses modules.",
   "components": {
     "hulls": [
       {
+        "id": "coque-intercepteur",
+        "name": "Coque d'intercepteur (28 m × 6 m)",
+        "dryMassKg": 41800,
+        "momentOfInertiaKgM2": [600000, 900000, 800000],
+        "collisionRadiusMeters": 15,
+        "signature": {
+          "thermal": {
+            "surfaceAreaM2": 550,
+            "emissivity": 0.85,
+            "heatCapacityJoulesPerKelvin": 28000000,
+            "baselineHeatWatts": 20000
+          },
+          "radar": {
+            "crossSectionFrontM2": 20,
+            "crossSectionSideM2": 150
+          }
+        },
+        "price": 20000
+      },
+      {
         "id": "coque-corvette-150t",
-        "name": "Coque de corvette 150 t (40 m × 10 m)",
-        "dryMassKg": 150000,
+        "name": "Coque de corvette (40 m × 10 m)",
+        "dryMassKg": 116500,
         "momentOfInertiaKgM2": [4000000, 5000000, 4500000],
         "collisionRadiusMeters": 25,
         "signature": {
@@ -20,7 +40,28 @@
             "crossSectionFrontM2": 60,
             "crossSectionSideM2": 400
           }
-        }
+        },
+        "price": 40000
+      },
+      {
+        "id": "coque-fregate",
+        "name": "Coque de frégate (70 m × 16 m)",
+        "dryMassKg": 347500,
+        "momentOfInertiaKgM2": [25000000, 35000000, 32000000],
+        "collisionRadiusMeters": 40,
+        "signature": {
+          "thermal": {
+            "surfaceAreaM2": 3800,
+            "emissivity": 0.85,
+            "heatCapacityJoulesPerKelvin": 200000000,
+            "baselineHeatWatts": 140000
+          },
+          "radar": {
+            "crossSectionFrontM2": 180,
+            "crossSectionSideM2": 1400
+          }
+        },
+        "price": 70000
       }
     ],
     "engines": [
@@ -31,7 +72,9 @@
         "maxThrustNewtons": 3000000,
         "specificImpulseSeconds": 900,
         "plumeRadiantFraction": 0.0001,
-        "wasteHeatFraction": 0.0001
+        "wasteHeatFraction": 0.0001,
+        "massKg": 12000,
+        "price": 14000
       },
       {
         "id": "moteur-epstein-9mn",
@@ -40,7 +83,53 @@
         "maxThrustNewtons": 9000000,
         "specificImpulseSeconds": 1000000,
         "plumeRadiantFraction": 1e-06,
-        "wasteHeatFraction": 1e-07
+        "wasteHeatFraction": 1e-07,
+        "massKg": 12000,
+        "price": 120000
+      },
+      {
+        "id": "moteur-chimique-4mn",
+        "name": "Moteur chimique 4 MN (Isp 450 s)",
+        "kind": "principal",
+        "maxThrustNewtons": 4000000,
+        "specificImpulseSeconds": 450,
+        "plumeRadiantFraction": 0.02,
+        "wasteHeatFraction": 0.0001,
+        "massKg": 4000,
+        "price": 6000
+      },
+      {
+        "id": "moteur-ntr-1500kn",
+        "name": "Moteur nucléaire thermique 1,5 MN (Isp 900 s)",
+        "kind": "principal",
+        "maxThrustNewtons": 1500000,
+        "specificImpulseSeconds": 900,
+        "plumeRadiantFraction": 0.0001,
+        "wasteHeatFraction": 0.0001,
+        "massKg": 6500,
+        "price": 8000
+      },
+      {
+        "id": "moteur-ntr-6mn",
+        "name": "Moteur nucléaire thermique 6 MN (Isp 900 s)",
+        "kind": "principal",
+        "maxThrustNewtons": 6000000,
+        "specificImpulseSeconds": 900,
+        "plumeRadiantFraction": 0.0001,
+        "wasteHeatFraction": 0.0001,
+        "massKg": 22000,
+        "price": 26000
+      },
+      {
+        "id": "moteur-epstein-3mn",
+        "name": "Moteur Epstein 3 MN (fiction)",
+        "kind": "principal",
+        "maxThrustNewtons": 3000000,
+        "specificImpulseSeconds": 1000000,
+        "plumeRadiantFraction": 1e-06,
+        "wasteHeatFraction": 1e-07,
+        "massKg": 5000,
+        "price": 60000
       },
       {
         "id": "propulseur-rcs-60kn",
@@ -48,22 +137,72 @@
         "kind": "rcs",
         "maxThrustNewtons": 60000,
         "specificImpulseSeconds": 300
+      },
+      {
+        "id": "propulseur-rcs-30kn",
+        "name": "Propulseur d'attitude 30 kN",
+        "kind": "rcs",
+        "maxThrustNewtons": 30000,
+        "specificImpulseSeconds": 300
+      },
+      {
+        "id": "propulseur-rcs-150kn",
+        "name": "Propulseur d'attitude 150 kN",
+        "kind": "rcs",
+        "maxThrustNewtons": 150000,
+        "specificImpulseSeconds": 300
       }
     ],
     "tanks": [
       {
+        "id": "reservoir-60t",
+        "name": "Réservoir de propergol 60 t",
+        "capacityKg": 60000,
+        "massKg": 2500,
+        "price": 2000
+      },
+      {
         "id": "reservoir-150t",
         "name": "Réservoir de propergol 150 t",
-        "capacityKg": 150000
+        "capacityKg": 150000,
+        "massKg": 6000,
+        "price": 4000
+      },
+      {
+        "id": "reservoir-300t",
+        "name": "Réservoir de propergol 300 t",
+        "capacityKg": 300000,
+        "massKg": 11000,
+        "price": 7000
       }
     ],
     "reactors": [
+      {
+        "id": "reacteur-250kw",
+        "name": "Réacteur 250 kWe (rendement 30 %)",
+        "maxPowerWatts": 250000,
+        "fuelConsumptionKgPerSecondAtMaxPower": 0.025,
+        "efficiency": 0.3,
+        "massKg": 3000,
+        "price": 4000
+      },
       {
         "id": "reacteur-500kw",
         "name": "Réacteur 500 kWe (rendement 30 %)",
         "maxPowerWatts": 500000,
         "fuelConsumptionKgPerSecondAtMaxPower": 0.05,
-        "efficiency": 0.3
+        "efficiency": 0.3,
+        "massKg": 5000,
+        "price": 7000
+      },
+      {
+        "id": "reacteur-1mw",
+        "name": "Réacteur 1 MWe (rendement 30 %)",
+        "maxPowerWatts": 1000000,
+        "fuelConsumptionKgPerSecondAtMaxPower": 0.1,
+        "efficiency": 0.3,
+        "massKg": 9000,
+        "price": 12000
       }
     ],
     "batteries": [
@@ -72,7 +211,8 @@
         "name": "Batterie 1 MWh",
         "capacityWattSeconds": 3600000,
         "maxChargeRateWatts": 100000,
-        "maxDischargeRateWatts": 200000
+        "maxDischargeRateWatts": 200000,
+        "massKg": 2500
       }
     ],
     "sensors": [
@@ -86,7 +226,23 @@
         "noiseEquivalentIrradianceWm2": 1e-12,
         "fieldOfViewSr": 0.0003,
         "pixelAngleRad": 2e-05,
-        "bandFraction": 0.3
+        "bandFraction": 0.3,
+        "massKg": 300,
+        "price": 3000
+      },
+      {
+        "id": "telescope-ir-60cm",
+        "name": "Télescope IR 60 cm",
+        "mode": "ir_passive",
+        "powerWatts": 800,
+        "cycleSeconds": 10,
+        "minFrameSeconds": 1,
+        "noiseEquivalentIrradianceWm2": 2.5e-13,
+        "fieldOfViewSr": 0.0003,
+        "pixelAngleRad": 1e-05,
+        "bandFraction": 0.3,
+        "massKg": 1100,
+        "price": 8000
       },
       {
         "id": "ecoute-esm",
@@ -96,7 +252,39 @@
         "cycleSeconds": 1.5,
         "minFrameSeconds": 1.5,
         "sensitivityWm2": 1e-09,
-        "bearingAccuracyRad": 0.005
+        "bearingAccuracyRad": 0.005,
+        "massKg": 200,
+        "price": 2000
+      },
+      {
+        "id": "ecoute-esm-avancee",
+        "name": "Écoute radar avancée (ESM)",
+        "mode": "radar_passive",
+        "powerWatts": 300,
+        "cycleSeconds": 1.5,
+        "minFrameSeconds": 1.5,
+        "sensitivityWm2": 2e-10,
+        "bearingAccuracyRad": 0.002,
+        "massKg": 500,
+        "price": 5000
+      },
+      {
+        "id": "radar-x-8kw",
+        "name": "Radar bande X 8 kW, antenne 1,5 m²",
+        "mode": "radar_active",
+        "powerWatts": 8000,
+        "electricalPowerWatts": 20000,
+        "cycleSeconds": 10,
+        "minFrameSeconds": 1,
+        "antennaAreaM2": 1.5,
+        "wavelengthMeters": 0.03,
+        "noiseTemperatureKelvin": 500,
+        "lossFactor": 10,
+        "requiredSnr": 20,
+        "rangeResolutionMeters": 15,
+        "sideLobeLevel": 0.001,
+        "massKg": 700,
+        "price": 4000
       },
       {
         "id": "radar-x-20kw",
@@ -112,7 +300,27 @@
         "lossFactor": 10,
         "requiredSnr": 20,
         "rangeResolutionMeters": 15,
-        "sideLobeLevel": 0.001
+        "sideLobeLevel": 0.001,
+        "massKg": 1500,
+        "price": 8000
+      },
+      {
+        "id": "radar-x-60kw",
+        "name": "Radar bande X 60 kW, antenne 6 m²",
+        "mode": "radar_active",
+        "powerWatts": 60000,
+        "electricalPowerWatts": 150000,
+        "cycleSeconds": 10,
+        "minFrameSeconds": 1,
+        "antennaAreaM2": 6,
+        "wavelengthMeters": 0.03,
+        "noiseTemperatureKelvin": 500,
+        "lossFactor": 10,
+        "requiredSnr": 20,
+        "rangeResolutionMeters": 15,
+        "sideLobeLevel": 0.001,
+        "massKg": 4000,
+        "price": 16000
       }
     ],
     "crews": [
@@ -125,6 +333,34 @@
       }
     ],
     "missiles": [
+      {
+        "id": "missile-chimique-leger",
+        "name": "Missile chimique léger (4 km/s)",
+        "structureMassKg": 120,
+        "reservoir": {
+          "capacityKg": 200,
+          "quantityKg": 200
+        },
+        "maxThrustNewtons": 80000,
+        "specificImpulseSeconds": 450,
+        "plumeRadiantFraction": 0.02,
+        "wasteHeatFraction": 0.001,
+        "signature": {
+          "thermal": {
+            "surfaceAreaM2": 3,
+            "emissivity": 0.8,
+            "heatCapacityJoulesPerKelvin": 120000,
+            "baselineHeatWatts": 150
+          },
+          "radar": {
+            "crossSectionFrontM2": 0.04,
+            "crossSectionSideM2": 0.3
+          }
+        },
+        "presentedAreaFrontM2": 0.1,
+        "presentedAreaSideM2": 1.2,
+        "price": 1500
+      },
       {
         "id": "missile-chimique-avance",
         "name": "Missile chimique avancé (6 km/s)",
@@ -150,7 +386,8 @@
           }
         },
         "presentedAreaFrontM2": 0.13,
-        "presentedAreaSideM2": 1.6
+        "presentedAreaSideM2": 1.6,
+        "price": 3000
       },
       {
         "id": "torpille-epstein",
@@ -177,7 +414,8 @@
           }
         },
         "presentedAreaFrontM2": 0.12,
-        "presentedAreaSideM2": 1.2
+        "presentedAreaSideM2": 1.2,
+        "price": 12000
       }
     ],
     "doctrines": [
@@ -197,7 +435,7 @@
         "decoyVectorSeconds": 20,
         "decoyDriftSeconds": 180,
         "decoyCooldownSeconds": 120,
-   "terminalDefenseSeconds": 20
+        "terminalDefenseSeconds": 20
       }
     ],
     "decoys": [
@@ -232,7 +470,8 @@
           "radiantEnergyJoulesPerKg": 2000000
         },
         "presentedAreaFrontM2": 0.8,
-        "presentedAreaSideM2": 1.0
+        "presentedAreaSideM2": 1.0,
+        "price": 1200
       },
       {
         "id": "leurre-leger",
@@ -260,10 +499,23 @@
           }
         },
         "presentedAreaFrontM2": 0.1,
-        "presentedAreaSideM2": 0.3
+        "presentedAreaSideM2": 0.3,
+        "price": 400
       }
     ],
     "pdcs": [
+      {
+        "id": "pdc-20mm",
+        "name": "PDC 20 mm (1 800 m/s, 100 coups/s)",
+        "muzzleVelocityMps": 1800,
+        "rateOfFireRoundsPerSecond": 100,
+        "dispersionRad": 0.0012,
+        "maxRangeMeters": 4000,
+        "magazineRounds": 5000,
+        "retargetSeconds": 0.7,
+        "massKg": 2500,
+        "price": 4000
+      },
       {
         "id": "pdc-25mm",
         "name": "PDC 25 mm (1 500 m/s, 60 coups/s)",
@@ -272,11 +524,169 @@
         "dispersionRad": 0.001,
         "maxRangeMeters": 5000,
         "magazineRounds": 3000,
-        "retargetSeconds": 1
+        "retargetSeconds": 1,
+        "massKg": 3000,
+        "price": 5000
+      },
+      {
+        "id": "pdc-40mm",
+        "name": "PDC 40 mm (1 100 m/s, 20 coups/s)",
+        "muzzleVelocityMps": 1100,
+        "rateOfFireRoundsPerSecond": 20,
+        "dispersionRad": 0.0008,
+        "maxRangeMeters": 7000,
+        "magazineRounds": 1000,
+        "retargetSeconds": 1.5,
+        "massKg": 4500,
+        "price": 6000
       }
     ]
   },
   "assemblies": [
+    {
+      "id": "intercepteur-standard",
+      "name": "Intercepteur standard (nucléaire thermique)",
+      "hull": "coque-intercepteur",
+      "thrusters": [
+        {
+          "id": "principal",
+          "component": "moteur-ntr-1500kn",
+          "localPosition": [0, 0, 0],
+          "localAxis": [1, 0, 0]
+        },
+        {
+          "id": "rcs-roll-pos-a",
+          "component": "propulseur-rcs-30kn",
+          "localPosition": [0, 5, 0],
+          "localAxis": [0, 0, 1]
+        },
+        {
+          "id": "rcs-roll-pos-b",
+          "component": "propulseur-rcs-30kn",
+          "localPosition": [0, -5, 0],
+          "localAxis": [0, 0, -1]
+        },
+        {
+          "id": "rcs-roll-neg-a",
+          "component": "propulseur-rcs-30kn",
+          "localPosition": [0, 5, 0],
+          "localAxis": [0, 0, -1]
+        },
+        {
+          "id": "rcs-roll-neg-b",
+          "component": "propulseur-rcs-30kn",
+          "localPosition": [0, -5, 0],
+          "localAxis": [0, 0, 1]
+        },
+        {
+          "id": "rcs-pitch-pos-a",
+          "component": "propulseur-rcs-30kn",
+          "localPosition": [0, 0, 5],
+          "localAxis": [1, 0, 0]
+        },
+        {
+          "id": "rcs-pitch-pos-b",
+          "component": "propulseur-rcs-30kn",
+          "localPosition": [0, 0, -5],
+          "localAxis": [-1, 0, 0]
+        },
+        {
+          "id": "rcs-pitch-neg-a",
+          "component": "propulseur-rcs-30kn",
+          "localPosition": [0, 0, 5],
+          "localAxis": [-1, 0, 0]
+        },
+        {
+          "id": "rcs-pitch-neg-b",
+          "component": "propulseur-rcs-30kn",
+          "localPosition": [0, 0, -5],
+          "localAxis": [1, 0, 0]
+        },
+        {
+          "id": "rcs-yaw-pos-a",
+          "component": "propulseur-rcs-30kn",
+          "localPosition": [5, 0, 0],
+          "localAxis": [0, 1, 0]
+        },
+        {
+          "id": "rcs-yaw-pos-b",
+          "component": "propulseur-rcs-30kn",
+          "localPosition": [-5, 0, 0],
+          "localAxis": [0, -1, 0]
+        },
+        {
+          "id": "rcs-yaw-neg-a",
+          "component": "propulseur-rcs-30kn",
+          "localPosition": [5, 0, 0],
+          "localAxis": [0, -1, 0]
+        },
+        {
+          "id": "rcs-yaw-neg-b",
+          "component": "propulseur-rcs-30kn",
+          "localPosition": [-5, 0, 0],
+          "localAxis": [0, 1, 0]
+        }
+      ],
+      "tank": {
+        "component": "reservoir-60t",
+        "quantityKg": 60000
+      },
+      "reactor": "reacteur-250kw",
+      "battery": {
+        "component": "batterie-1mwh",
+        "chargeWattSeconds": 3600000
+      },
+      "sensors": [
+        {
+          "id": "ir-1",
+          "component": "telescope-ir-30cm"
+        },
+        {
+          "id": "listen-1",
+          "component": "ecoute-esm"
+        },
+        {
+          "id": "radar-1",
+          "component": "radar-x-8kw"
+        }
+      ],
+      "electricalLoads": [
+        {
+          "id": "vie",
+          "label": "Support vie et commandes",
+          "nominalPowerWatts": 8000,
+          "priorityGroup": "vie"
+        },
+        {
+          "id": "rcs-aux",
+          "label": "Propulsion auxiliaire / RCS",
+          "nominalPowerWatts": 10000,
+          "priorityGroup": "propulsion_auxiliaire"
+        },
+        {
+          "id": "services",
+          "label": "Services secondaires",
+          "nominalPowerWatts": 5000,
+          "priorityGroup": "services"
+        }
+      ],
+      "crew": "equipage-standard",
+      "doctrine": "doctrine-standard",
+      "missiles": {
+        "missile": "missile-chimique-avance",
+        "count": 2
+      },
+      "decoys": {
+        "decoy": "leurre-leger",
+        "count": 2
+      },
+      "pdcs": [
+        {
+          "id": "pdc-dorsale",
+          "component": "pdc-20mm"
+        }
+      ]
+    },
     {
       "id": "corvette-classique",
       "name": "Corvette « classique × 2 » (nucléaire thermique)",
@@ -415,8 +825,14 @@
         "count": 3
       },
       "pdcs": [
-        { "id": "pdc-dorsale", "component": "pdc-25mm" },
-        { "id": "pdc-ventrale", "component": "pdc-25mm" }
+        {
+          "id": "pdc-dorsale",
+          "component": "pdc-25mm"
+        },
+        {
+          "id": "pdc-ventrale",
+          "component": "pdc-25mm"
+        }
       ]
     },
     {
@@ -557,9 +973,201 @@
         "count": 3
       },
       "pdcs": [
-        { "id": "pdc-dorsale", "component": "pdc-25mm" },
-        { "id": "pdc-ventrale", "component": "pdc-25mm" }
+        {
+          "id": "pdc-dorsale",
+          "component": "pdc-25mm"
+        },
+        {
+          "id": "pdc-ventrale",
+          "component": "pdc-25mm"
+        }
       ]
+    },
+    {
+      "id": "fregate-standard",
+      "name": "Frégate standard (nucléaire thermique)",
+      "hull": "coque-fregate",
+      "thrusters": [
+        {
+          "id": "principal",
+          "component": "moteur-ntr-6mn",
+          "localPosition": [0, 0, 0],
+          "localAxis": [1, 0, 0]
+        },
+        {
+          "id": "rcs-roll-pos-a",
+          "component": "propulseur-rcs-150kn",
+          "localPosition": [0, 18, 0],
+          "localAxis": [0, 0, 1]
+        },
+        {
+          "id": "rcs-roll-pos-b",
+          "component": "propulseur-rcs-150kn",
+          "localPosition": [0, -18, 0],
+          "localAxis": [0, 0, -1]
+        },
+        {
+          "id": "rcs-roll-neg-a",
+          "component": "propulseur-rcs-150kn",
+          "localPosition": [0, 18, 0],
+          "localAxis": [0, 0, -1]
+        },
+        {
+          "id": "rcs-roll-neg-b",
+          "component": "propulseur-rcs-150kn",
+          "localPosition": [0, -18, 0],
+          "localAxis": [0, 0, 1]
+        },
+        {
+          "id": "rcs-pitch-pos-a",
+          "component": "propulseur-rcs-150kn",
+          "localPosition": [0, 0, 18],
+          "localAxis": [1, 0, 0]
+        },
+        {
+          "id": "rcs-pitch-pos-b",
+          "component": "propulseur-rcs-150kn",
+          "localPosition": [0, 0, -18],
+          "localAxis": [-1, 0, 0]
+        },
+        {
+          "id": "rcs-pitch-neg-a",
+          "component": "propulseur-rcs-150kn",
+          "localPosition": [0, 0, 18],
+          "localAxis": [-1, 0, 0]
+        },
+        {
+          "id": "rcs-pitch-neg-b",
+          "component": "propulseur-rcs-150kn",
+          "localPosition": [0, 0, -18],
+          "localAxis": [1, 0, 0]
+        },
+        {
+          "id": "rcs-yaw-pos-a",
+          "component": "propulseur-rcs-150kn",
+          "localPosition": [18, 0, 0],
+          "localAxis": [0, 1, 0]
+        },
+        {
+          "id": "rcs-yaw-pos-b",
+          "component": "propulseur-rcs-150kn",
+          "localPosition": [-18, 0, 0],
+          "localAxis": [0, -1, 0]
+        },
+        {
+          "id": "rcs-yaw-neg-a",
+          "component": "propulseur-rcs-150kn",
+          "localPosition": [18, 0, 0],
+          "localAxis": [0, -1, 0]
+        },
+        {
+          "id": "rcs-yaw-neg-b",
+          "component": "propulseur-rcs-150kn",
+          "localPosition": [-18, 0, 0],
+          "localAxis": [0, 1, 0]
+        }
+      ],
+      "tank": {
+        "component": "reservoir-300t",
+        "quantityKg": 300000
+      },
+      "reactor": "reacteur-1mw",
+      "battery": {
+        "component": "batterie-1mwh",
+        "chargeWattSeconds": 3600000
+      },
+      "sensors": [
+        {
+          "id": "ir-1",
+          "component": "telescope-ir-30cm"
+        },
+        {
+          "id": "listen-1",
+          "component": "ecoute-esm"
+        },
+        {
+          "id": "radar-1",
+          "component": "radar-x-20kw"
+        }
+      ],
+      "electricalLoads": [
+        {
+          "id": "vie",
+          "label": "Support vie et commandes",
+          "nominalPowerWatts": 40000,
+          "priorityGroup": "vie"
+        },
+        {
+          "id": "rcs-aux",
+          "label": "Propulsion auxiliaire / RCS",
+          "nominalPowerWatts": 50000,
+          "priorityGroup": "propulsion_auxiliaire"
+        },
+        {
+          "id": "services",
+          "label": "Services secondaires",
+          "nominalPowerWatts": 30000,
+          "priorityGroup": "services"
+        }
+      ],
+      "crew": "equipage-standard",
+      "doctrine": "doctrine-standard",
+      "missiles": {
+        "missile": "missile-chimique-avance",
+        "count": 6
+      },
+      "decoys": {
+        "decoy": "leurre-reflecteurs",
+        "count": 3
+      },
+      "pdcs": [
+        {
+          "id": "pdc-dorsale",
+          "component": "pdc-25mm"
+        },
+        {
+          "id": "pdc-ventrale",
+          "component": "pdc-25mm"
+        }
+      ]
+    }
+  ],
+  "shipClasses": [
+    {
+      "id": "classe-intercepteur",
+      "name": "Intercepteur",
+      "description": "Coque légère, très manœuvrante et discrète, mais peu d'emport : deux missiles, une tourelle.",
+      "baseAssembly": "intercepteur-standard",
+      "limits": {
+        "missiles": 2,
+        "decoys": 2,
+        "pdcMounts": 1,
+        "maxTankCapacityKg": 60000
+      }
+    },
+    {
+      "id": "classe-corvette",
+      "name": "Corvette",
+      "description": "Le compromis du duel de démo : emport moyen, deux tourelles, autonomie correcte.",
+      "baseAssembly": "corvette-classique",
+      "limits": {
+        "missiles": 6,
+        "decoys": 4,
+        "pdcMounts": 2,
+        "maxTankCapacityKg": 150000
+      }
+    },
+    {
+      "id": "classe-fregate",
+      "name": "Frégate",
+      "description": "Coque lourde : gros emport et quatre emplacements de tourelle, mais lente à accélérer et très visible.",
+      "baseAssembly": "fregate-standard",
+      "limits": {
+        "missiles": 12,
+        "decoys": 6,
+        "pdcMounts": 4,
+        "maxTankCapacityKg": 300000
+      }
     }
   ]
 }
