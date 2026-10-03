@@ -106,7 +106,8 @@ export class SphereScope {
   readonly camera = new THREE.PerspectiveCamera(50, 1, 1, 1e7);
   readonly element: HTMLElement;
 
-  private readonly renderer: THREE.WebGLRenderer;
+  /** `null` si WebGL est indisponible : la vue affiche un message, le poste reste utilisable. */
+  private readonly renderer: THREE.WebGLRenderer | null;
   private readonly canvas: HTMLCanvasElement;
   private readonly overlay: HTMLElement;
   private readonly sphere: THREE.Group;
@@ -129,8 +130,8 @@ export class SphereScope {
     // Les commandes de vue sont à la souris uniquement (plus de boutons − / + / Recentrer).
     this.overlay.appendChild(el("div", "scope-hint", "Glisser : tourner · molette : zoom · double-clic : recentrer · clic sur un contact : sélection"));
 
-    this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.renderer = createRenderer(this.canvas);
+    if (!this.renderer) this.overlay.appendChild(el("div", "scope-unavailable", "Affichage 3D indisponible : WebGL n'est pas activé dans ce navigateur."));
     this.scene.background = new THREE.Color(0x04080c);
     this.scene.add(new THREE.AmbientLight(0xffffff, 1));
     this.sphere = buildSphereWire();
@@ -194,7 +195,7 @@ export class SphereScope {
   resize(): void {
     this.width = Math.max(1, this.element.clientWidth);
     this.height = Math.max(1, this.element.clientHeight);
-    this.renderer.setSize(this.width, this.height, false);
+    this.renderer?.setSize(this.width, this.height, false);
     this.camera.aspect = this.width / this.height;
     this.camera.updateProjectionMatrix();
   }
@@ -214,7 +215,7 @@ export class SphereScope {
     this.camera.far = this.distance + this.radiusMeters * 20;
     this.camera.updateProjectionMatrix();
     this.camera.updateMatrixWorld();
-    this.renderer.render(this.scene, this.camera);
+    this.renderer?.render(this.scene, this.camera);
 
     for (const { el: node, direction } of this.bearingLabels) {
       const screen = this.project(center.clone().addScaledVector(direction, this.radiusMeters * 1.04));
@@ -340,7 +341,17 @@ export class SphereScope {
   }
 
   dispose(): void {
-    this.renderer.dispose();
+    this.renderer?.dispose();
     this.element.remove();
+  }
+}
+
+function createRenderer(canvas: HTMLCanvasElement): THREE.WebGLRenderer | null {
+  try {
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    return renderer;
+  } catch {
+    return null;
   }
 }

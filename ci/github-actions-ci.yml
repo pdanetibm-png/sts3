@@ -1,0 +1,25 @@
+# Vérification à chaque push et pull request : tests (simulation et interface) puis build.
+#
+# À ACTIVER : copier ce fichier dans .github/workflows/ci.yml. Il est rangé ici parce que GitHub
+# refuse tout push qui crée ou modifie un fichier de .github/workflows/ avec un jeton d'accès
+# sans la permission « workflow ». Activation possible depuis l'interface web de GitHub
+# (Add file → Create new file → .github/workflows/ci.yml), ou par un push avec un jeton qui a
+# cette permission.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  tests-et-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run build

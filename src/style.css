@@ -2337,8 +2337,13 @@ button {
   z-index: 1;
 }
 
+/* État de vol allégé (plus de bloc « Ordre actif ») : la place va à la liste des pistes. */
 .station-side .screen-flight {
-  flex-grow: 1.6;
+  flex-grow: 1.1;
+}
+
+.pilot-station .track-row {
+  padding: 3px 8px;
 }
 
 .station .viewport-label {
@@ -3330,6 +3335,16 @@ button {
   inset: 0;
   pointer-events: none;
   z-index: 1;
+}
+
+.scope-unavailable {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--warning, #ffb648);
 }
 
 .scope-hint {
